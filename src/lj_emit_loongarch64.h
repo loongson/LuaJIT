@@ -53,17 +53,6 @@ static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow);
 static void ra_allockreg(ASMState *as, intptr_t k, Reg r);
 static Reg ra_scratch(ASMState *as, RegSet allow);
 
-static void emit_dj32i(ASMState *as, Reg rd, Reg rj, int32_t i)
-{
-  if (checki12(i)) {
-    *--as->mcp = LOONGI_ADDI_D | LOONGF_D(rd) | LOONGF_J(rj) | LOONGF_I(i&0xfff);
-  } else {
-    emit_djk(as, LOONGI_ADD_D, rd, RID_R20, rj);
-    emit_dju(as, LOONGI_ORI, RID_R20, RID_R20, i&0xfff);
-    emit_di(as, LOONGI_LU12I_W, RID_R20, (i>>12)&0xfffff);
-  }
-}
-
 static void emit_d16i(ASMState *as, Reg rd, int32_t i)
 {
   emit_dji(as, LOONGI_SRAI_D, rd, rd, 16);
@@ -92,17 +81,28 @@ static void emit_b_bl(ASMState *as, LOONGIns loongi, uint32_t i)
 #define emit_canremat(ref)	((ref) <= REF_BASE)
 
 
-/* Load a 32 bit constant into a GPR. */
+/* Load a signed 32 bit constant into a GPR. */
+static void emit_loads32(ASMState *as, Reg r, int32_t i)
+{
+  emit_dju(as, LOONGI_ORI, r, r, i&0xfff);
+  emit_di(as, LOONGI_LU12I_W, r, (i>>12)&0xfffff);
+}
+
+/* Load a int type value into a GPR. */
 static void emit_loadi(ASMState *as, Reg r, int32_t i)
 {
-  emit_dj32i(as, r, RID_ZERO, i);
+  if (checki12(i)) {
+    *--as->mcp = LOONGI_ADDI_D | LOONGF_D(r) | RID_ZERO | LOONGF_I(i&0xfff);
+  } else {
+    emit_loads32(as, r, i);
+  }
 }
 
 /* Load a 64 bit constant into a GPR. */
 static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
 {
   if (checki32((int64_t)u64)) {
-    emit_dj32i(as, r, RID_ZERO, (int32_t)u64);
+    emit_loadi(as, r, (int32_t)u64);
   } else {
       *--as->mcp = LOONGI_LU52I_D | LOONGF_D(r) | LOONGF_J(r) | LOONGF_I((u64>>52)&0xfff);
       *--as->mcp = LOONGI_LU32I_D | LOONGF_D(r) | LOONGF_I20((u64>>32)&0xfffff);

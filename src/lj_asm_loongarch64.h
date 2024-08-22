@@ -53,7 +53,7 @@ static void asm_exitstub_setup(ASMState *as)
     --as->mcp;
   /* st.w TMP, sp, 0; li TMP, traceno; jirl ->vm_exit_handler;*/
   *--mxp = LOONGI_JIRL | RID_R0 | LOONGF_J(RID_R20) | 0<<10;
-  emit_dj32i(as, RID_TMP, RID_ZERO, as->T->traceno);
+  emit_loadi(as, RID_TMP, as->T->traceno);
   *--mxp = *as->mcp;
   *--mxp = LOONGI_LU52I_D | RID_R20 | LOONGF_J(RID_R20)
             | LOONGF_I((((uintptr_t)(void *)lj_vm_exit_handler)>>52)&0xfff);
@@ -792,7 +792,7 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   }
   if (irt_isnum(kt)) {
     emit_branch21(as, LOONGI_BCNEZ, 0, l_end);
-    emit_dj32i(as, RID_TMP, RID_ZERO, as->snapno);
+    emit_loadi(as, RID_TMP, as->snapno);
     emit_djk(as, LOONGI_FCMP_CEQ_D, 0, tmpnum, key);
     emit_branch(as, LOONGI_BEQ, tmp1, RID_ZERO, l_next);
     emit_dju(as, LOONGI_SLTUI, tmp1, tmp1, ((int32_t)LJ_TISNUM)&0xfff);
@@ -800,7 +800,7 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
     emit_dj(as, LOONGI_MOVGR2FR_D, tmpnum, tmp1);
   } else {
     emit_branch(as, LOONGI_BEQ, tmp1, cmp64, l_end);
-    emit_dj32i(as, RID_TMP, RID_ZERO, as->snapno);
+    emit_loadi(as, RID_TMP, as->snapno);
   }
   emit_dji(as, LOONGI_LD_D, tmp1, dest, (int32_t)offsetof(Node, key.u64)&0xfff);
   *l_loop = LOONGI_BNE | LOONGF_J(tmp1) | LOONGF_D(RID_ZERO) | LOONGF_I(((as->mcp-l_loop) & 0xffffu));
@@ -1252,7 +1252,7 @@ static void asm_cnew(ASMState *as, IRIns *ir)
   emit_dji(as, LOONGI_ST_B, RID_RET+1, RID_RET, (offsetof(GCcdata, gct))&0xfff);
   emit_dji(as, LOONGI_ST_H, RID_TMP, RID_RET, (offsetof(GCcdata, ctypeid))&0xfff);
   emit_dji(as, LOONGI_ADDI_D, RID_RET+1, RID_ZERO, ~LJ_TCDATA&0xfff);
-  emit_dj32i(as, RID_TMP, RID_ZERO, id);
+  emit_loadi(as, RID_TMP, id);
   args[0] = ASMREF_L;     /* lua_State *L */
   args[1] = ASMREF_TMP1;  /* MSize size   */
   asm_gencall(as, ci, args);
