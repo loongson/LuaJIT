@@ -1750,12 +1750,12 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
 	  emit_djk(as, LOONGI_STX_D,
 	           ra_allock(as, kki | (int64_t)(uint32_t)ir->i, allow),
 		   RID_BASE, RID_R20);
-	  emit_d16i(as, RID_R20, ofs);
+	  emit_loadi(as, RID_R20, ofs);
 	} else {
 	  Reg src = ra_alloc1(as, ref, allow);
 	  Reg rki = ra_allock(as, kki, rset_exclude(allow, src));
 	  emit_djk(as, LOONGI_STX_D, RID_TMP, RID_BASE, RID_R20);
-	  emit_d16i(as, RID_R20, ofs);
+	  emit_loadi(as, RID_R20, ofs);
 	  emit_djk(as, LOONGI_ADD_D, RID_TMP, src, rki);
 	}
       } else {

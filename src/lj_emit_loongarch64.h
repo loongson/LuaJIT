@@ -53,12 +53,6 @@ static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow);
 static void ra_allockreg(ASMState *as, intptr_t k, Reg r);
 static Reg ra_scratch(ASMState *as, RegSet allow);
 
-static void emit_d16i(ASMState *as, Reg rd, int32_t i)
-{
-  emit_dji(as, LOONGI_SRAI_D, rd, rd, 16);
-  emit_dji(as, LOONGI_ADDU16I_D, rd, RID_ZERO, (i&0xffff));
-}
-
 static void emit_djml(ASMState *as, LOONGIns loongi, Reg rd, Reg rj, uint32_t m, uint32_t l)
 {
   *--as->mcp = loongi | LOONGF_D(rd & 0x1f) | LOONGF_J(rj & 0x1f) | LOONGF_I(l & 0x3f) | LOONGF_M(m & 0x3f);
@@ -117,18 +111,11 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
 static void emit_lsptr(ASMState *as, LOONGIns loongi, Reg r, void *p, RegSet allow)
 {
   intptr_t jgl = (intptr_t)(J2G(as->J));
-  intptr_t i = (intptr_t)(p);
-  Reg base;
-  if ((uint32_t)(i-jgl) < 65536) {	//TODO
-    i = i-jgl-32768;
-    base = RID_JGL;
+  int32_t ofs = (intptr_t)(p)-jgl-32768;
+  Reg base = RID_JGL;
+  if (checki12(ofs)) {
+    emit_dji(as, loongi, r, base, ofs&0xfff);
   } else {
-    base = ra_allock(as, i-(int16_t)i, allow);
-  }
-  if (checki12(i)) {
-    emit_dji(as, loongi, r, base, i&0xfff);
-  }
-  else {
     /* ld.d->ldx.d, fld.d->fldx.d, ld.s->fldx.s */
     if (loongi == LOONGI_LD_D)
       loongi = LOONGI_LDX_D;
@@ -137,9 +124,7 @@ static void emit_lsptr(ASMState *as, LOONGIns loongi, Reg r, void *p, RegSet all
     else if (loongi == LOONGI_FLD_S)
       loongi = LOONGI_FLDX_S;
     emit_djk(as, loongi, r, base, RID_R20);
-
-    /* move i to a GPR */
-    emit_d16i(as, RID_R20, i);	// i&0xffff
+    emit_loads32(as, RID_R20, ofs);
   }
 }
 
@@ -269,10 +254,9 @@ static void emit_lso(ASMState *as, LOONGIns loongi, Reg dest, Reg src, int64_t i
       case LOONGI_FLD_S: loongk = LOONGI_FLDX_S; break;
       default: break;
     }
-    //Reg src2 = ra_allock(as, i, allow);
-    Reg src2 = ra_scratch(as, allow);
-    emit_djk(as, loongk, dest, src, src2);
-    emit_d16i(as, src2, i);
+    Reg ofs = ra_scratch(as, allow);
+    emit_djk(as, loongk, dest, src, ofs);
+    emit_loads32(as, ofs, i);
   }
 }
 
