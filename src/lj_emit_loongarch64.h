@@ -117,14 +117,18 @@ static void emit_lsptr(ASMState *as, LOONGIns loongi, Reg r, void *p, RegSet all
     emit_dji(as, loongi, r, base, ofs&0xfff);
   } else {
     /* ld.d->ldx.d, fld.d->fldx.d, ld.s->fldx.s */
-    if (loongi == LOONGI_LD_D)
+    Reg tmp = r;
+    if (loongi == LOONGI_LD_D) {
       loongi = LOONGI_LDX_D;
-    else if (loongi == LOONGI_FLD_D)
+    } else if (loongi == LOONGI_FLD_D) {
+      tmp = ra_scratch(as, RSET_GPR);
       loongi = LOONGI_FLDX_D;
-    else if (loongi == LOONGI_FLD_S)
+    } else if (loongi == LOONGI_FLD_S) {
+      tmp = ra_scratch(as, RSET_GPR);
       loongi = LOONGI_FLDX_S;
-    emit_djk(as, loongi, r, base, RID_R20);
-    emit_loads32(as, RID_R20, ofs);
+    }
+    emit_djk(as, loongi, r, base, tmp);
+    emit_loads32(as, tmp, ofs);
   }
 }
 
@@ -146,8 +150,12 @@ static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
 /* Get/set global_State fields. */
 static void emit_lsglptr2(ASMState *as, LOONGIns loongi, Reg r, int32_t ofs)
 {
-  emit_djk(as, loongi, r, RID_JGL, RID_R20);
-  emit_loadi(as, RID_R20, (ofs-32768));
+  Reg tmp = r;
+  if (loongi == LOONGI_STX_D) {
+    tmp = ra_scratch(as, RSET_GPR);
+  }
+  emit_djk(as, loongi, r, RID_JGL, tmp);
+  emit_loadi(as, tmp, (ofs-32768));
 }
 
 #define emit_getgl(as, r, field) \
@@ -270,12 +278,15 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
       emit_dji(as, irt_isnum(ir->t) ? LOONGI_FLD_D : LOONGI_FLD_S, r, base, ofs&0xfff);
     }
   } else {
+    Reg tmp;
     if (r < RID_MAX_GPR) {
-      emit_djk(as, irt_is64(ir->t) ? LOONGI_LDX_D : LOONGI_LDX_W, r, base, RID_R20);
+      tmp = r;
+      emit_djk(as, irt_is64(ir->t) ? LOONGI_LDX_D : LOONGI_LDX_W, r, base, tmp);
     } else {
-      emit_djk(as, irt_isnum(ir->t) ? LOONGI_FLDX_D : LOONGI_FLDX_S, r, base, RID_R20);
+      tmp = ra_scratch(as, RSET_GPR);
+      emit_djk(as, irt_isnum(ir->t) ? LOONGI_FLDX_D : LOONGI_FLDX_S, r, base, tmp);
     }
-    emit_loads32(as, RID_R20, ofs);
+    emit_loads32(as, tmp, ofs);
   }
 }
 
@@ -289,12 +300,13 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
       emit_dji(as, irt_isnum(ir->t) ? LOONGI_FST_D : LOONGI_FST_S, r, base, ofs&0xfff);
     }
   } else {
+    Reg tmp = ra_scratch(as, RSET_GPR);
     if (r < RID_MAX_GPR) {
-      emit_djk(as, irt_is64(ir->t) ? LOONGI_STX_D : LOONGI_STX_W, r, base, RID_R20);
+      emit_djk(as, irt_is64(ir->t) ? LOONGI_STX_D : LOONGI_STX_W, r, base, tmp);
     } else {
-      emit_djk(as, irt_isnum(ir->t) ? LOONGI_FSTX_D : LOONGI_FSTX_S, (r&31), base, RID_R20);
+      emit_djk(as, irt_isnum(ir->t) ? LOONGI_FSTX_D : LOONGI_FSTX_S, r, base, tmp);
     }
-    emit_loads32(as, RID_R20, ofs);
+    emit_loads32(as, tmp, ofs);
   }
 }
 

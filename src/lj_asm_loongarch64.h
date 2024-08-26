@@ -52,17 +52,13 @@ static void asm_exitstub_setup(ASMState *as)
   if (as->mcp == mxp)
     --as->mcp;
   /* st.w TMP, sp, 0; li TMP, traceno; jirl ->vm_exit_handler;*/
-  *--mxp = LOONGI_JIRL | RID_R0 | LOONGF_J(RID_R20) | 0<<10;
+  mxp--;
+  lj_assertA(((uintptr_t)mxp ^ (uintptr_t)(void *)lj_vm_exit_handler)>>28 == 0,
+	     "branch target out of range");
+  ptrdiff_t delta = ((uintptr_t)(void *)lj_vm_exit_handler - (uintptr_t)mxp)>>2;
+  *mxp = LOONGI_B | LOONGF_I(delta & 0xffffu) | ((delta & 0x3ff0000) >> 16);
   emit_loadi(as, RID_TMP, as->T->traceno);
   *--mxp = *as->mcp;
-  *--mxp = LOONGI_LU52I_D | RID_R20 | LOONGF_J(RID_R20)
-            | LOONGF_I((((uintptr_t)(void *)lj_vm_exit_handler)>>52)&0xfff);
-  *--mxp = LOONGI_LU32I_D | RID_R20
-            | LOONGF_I20((((uintptr_t)(void *)lj_vm_exit_handler)>>32)&0xfffff);
-  *--mxp = LOONGI_ORI | RID_R20 | LOONGF_J(RID_R20)
-            | LOONGF_I(((uintptr_t)(void *)lj_vm_exit_handler)&0xfff);
-  *--mxp = LOONGI_LU12I_W | RID_R20
-            | LOONGF_I20((((uintptr_t)(void *)lj_vm_exit_handler)&0xfffff000)>>12);
   *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP);
   as->mctop = mxp;
 }
@@ -1701,19 +1697,19 @@ static void asm_stack_check(ASMState *as, BCReg topslot,
   Reg tmp, pbase = irp ? (ra_hasreg(irp->r) ? irp->r : RID_TMP) : RID_BASE;
   ExitNo oldsnap = as->snapno;
   rset_clear(allow, pbase);
-  as->snapno = exitno;
-  asm_guard(as, LOONGI_BNE, RID_R20, RID_ZERO);
-  as->snapno = oldsnap;
   if (allow) {
     tmp = rset_pickbot(allow);
     ra_modified(as, tmp);
-  } else {	// allow == RSET_EMPTY
+  } else {
     tmp = RID_RET;
     emit_dji(as, LOONGI_LD_D, tmp, RID_SP, 0);	/* Restore tmp1 register. */
   }
+  as->snapno = exitno;
+  asm_guard(as, LOONGI_BNE, tmp, RID_ZERO);
+  as->snapno = oldsnap;
   lj_assertA(checki12(8*topslot), "slot offset %d does not fit in si12", 8*topslot);
-  emit_dji(as, LOONGI_SLTUI, RID_R20, RID_R20, (int32_t)(8*topslot)&0xfff);
-  emit_djk(as, LOONGI_SUB_D, RID_R20, tmp, pbase);
+  emit_dji(as, LOONGI_SLTUI, tmp, RID_TMP, (int32_t)(8*topslot)&0xfff);
+  emit_djk(as, LOONGI_SUB_D, RID_TMP, tmp, pbase);
   emit_dji(as, LOONGI_LD_D, tmp, tmp, offsetof(lua_State, maxstack));
   if (pbase == RID_TMP)
     emit_getgl(as, RID_TMP, jit_base);
@@ -1741,21 +1737,19 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
       continue;
     if (irt_isnum(ir->t)) {
       Reg src = ra_alloc1(as, ref, RSET_FPR);
-      emit_dji(as, LOONGI_FST_D, src, RID_BASE, ofs&0xfff);
+      emit_lso(as, LOONGI_FST_D, src, RID_BASE, ofs, RSET_GPR);
     } else {
       if ((sn & SNAP_KEYINDEX)) {
         RegSet allow = rset_exclude(RSET_GPR, RID_BASE);
 	int64_t kki = (int64_t)LJ_KEYINDEX << 32;
 	if (irref_isk(ref)) {
-	  emit_djk(as, LOONGI_STX_D,
+	  emit_lso(as, LOONGI_ST_D,
 	           ra_allock(as, kki | (int64_t)(uint32_t)ir->i, allow),
-		   RID_BASE, RID_R20);
-	  emit_loadi(as, RID_R20, ofs);
+		   RID_BASE, ofs, allow);
 	} else {
 	  Reg src = ra_alloc1(as, ref, allow);
-	  Reg rki = ra_allock(as, kki, rset_exclude(allow, src));
-	  emit_djk(as, LOONGI_STX_D, RID_TMP, RID_BASE, RID_R20);
-	  emit_loadi(as, RID_R20, ofs);
+	  Reg rki = ra_allock(as, kki, allow);
+	  emit_lso(as, LOONGI_ST_D, RID_TMP, RID_BASE, ofs, allow);
 	  emit_djk(as, LOONGI_ADD_D, RID_TMP, src, rki);
 	}
       } else {
