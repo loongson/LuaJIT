@@ -324,7 +324,7 @@ static void asm_callx(ASMState *as, IRIns *ir)
   if (irref_isk(func)) {  /* Call to constant address. */
     ci.func = (ASMFunction)(void *)get_kval(as, func);
   } else {  /* Need specific register for indirect calls. */
-    Reg freg = ra_alloc1(as, func, RSET_RANGE(RID_R12, RID_MAX_GPR)-RSET_FIXED);
+    Reg freg = ra_alloc1(as, func, RSET_RANGE(RID_R12, RID_MAX_GPR)&(~RSET_FIXED));
     *--as->mcp = LOONGI_JIRL | LOONGF_D(RID_RA) | LOONGF_J(freg);
     ci.func = (ASMFunction)(void *)0;
   }
