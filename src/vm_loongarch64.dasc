@@ -2166,6 +2166,7 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |->vm_exit_handler:
   |.if JIT
+  |  ld.w ra, 4(sp)		// li TMP, traceno
   |  addi.d sp, sp, -(32*8+32*8)
   |  savex_ 0, 2
   |  savex_ 4, 5

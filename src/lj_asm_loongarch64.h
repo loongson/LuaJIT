@@ -49,17 +49,27 @@ static Reg ra_alloc2(ASMState *as, IRIns *ir, RegSet allow)
 static void asm_exitstub_setup(ASMState *as)
 {
   MCode *mxp = as->mctop;
-  if (as->mcp == mxp)
-    --as->mcp;
-  /* st.w TMP, sp, 0; li TMP, traceno; jirl ->vm_exit_handler;*/
+  /* st.w TMP, sp, 0; li TMP, traceno; st.w TMP, sp, 4; jirl ->vm_exit_handler;*/
   mxp--;
-  lj_assertA(((uintptr_t)mxp ^ (uintptr_t)(void *)lj_vm_exit_handler)>>28 == 0,
-	     "branch target out of range");
   ptrdiff_t delta = ((uintptr_t)(void *)lj_vm_exit_handler - (uintptr_t)mxp)>>2;
-  *mxp = LOONGI_B | LOONGF_I(delta & 0xffffu) | ((delta & 0x3ff0000) >> 16);
-  emit_loadi(as, RID_TMP, as->T->traceno);
-  *--mxp = *as->mcp;
-  *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP);
+  if (LOONGF_S_OK(delta, 26)) {
+    *mxp = LOONGI_B | LOONGF_I(delta & 0xffffu) | ((delta & 0x3ff0000) >> 16);
+  } else {
+    *mxp = LOONGI_JIRL | RID_R0 | LOONGF_J(RID_TMP) | 0<<10;
+    uintptr_t target = (uintptr_t)(void *)lj_vm_exit_handler;
+    *--mxp = LOONGI_LU52I_D | RID_TMP | LOONGF_J(RID_TMP) | LOONGF_I((target>>52)&0xfff);
+    *--mxp = LOONGI_LU32I_D | RID_TMP | LOONGF_I20((target>>32)&0xfffff);
+    *--mxp = LOONGI_ORI | RID_TMP | LOONGF_J(RID_TMP) | LOONGF_I(target&0xfff);
+    *--mxp = LOONGI_LU12I_W | RID_TMP | LOONGF_I20((target&0xfffff000)>>12);
+  }
+  *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I(4);
+  if (checki12(as->T->traceno)) {
+    *--mxp = LOONGI_ADDI_D | LOONGF_D(RID_TMP) | RID_ZERO | LOONGF_I(as->T->traceno&0xfff);
+  } else {
+    *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I(as->T->traceno&0xfff);
+    *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20((as->T->traceno>>12)&0xfffff);
+  }
+  *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I(0);
   as->mctop = mxp;
 }
 
