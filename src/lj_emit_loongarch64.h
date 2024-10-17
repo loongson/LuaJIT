@@ -86,7 +86,7 @@ static void emit_loads32(ASMState *as, Reg r, int32_t i)
 static void emit_loadi(ASMState *as, Reg r, int32_t i)
 {
   if (checki12(i)) {
-    *--as->mcp = LOONGI_ADDI_D | LOONGF_D(r) | RID_ZERO | LOONGF_I(i&0xfff);
+    *--as->mcp = LOONGI_ADDI_D | LOONGF_D(r&0x1f) | LOONGF_J(RID_ZERO) | LOONGF_I(i&0xfff);
   } else {
     emit_loads32(as, r, i);
   }
@@ -98,10 +98,10 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
   if (checki32((int64_t)u64)) {
     emit_loadi(as, r, (int32_t)u64);
   } else {
-      *--as->mcp = LOONGI_LU52I_D | LOONGF_D(r) | LOONGF_J(r) | LOONGF_I((u64>>52)&0xfff);
-      *--as->mcp = LOONGI_LU32I_D | LOONGF_D(r) | LOONGF_I20((u64>>32)&0xfffff);
-      *--as->mcp = LOONGI_ORI | LOONGF_D(r) | LOONGF_J(r) | LOONGF_I(u64&0xfff);
-      *--as->mcp = LOONGI_LU12I_W | LOONGF_D(r) | LOONGF_I20((u64>>12)&0xfffff);
+    *--as->mcp = LOONGI_LU52I_D | LOONGF_D(r) | LOONGF_J(r) | LOONGF_I((u64>>52)&0xfff);
+    *--as->mcp = LOONGI_LU32I_D | LOONGF_D(r) | LOONGF_I20((u64>>32)&0xfffff);
+    *--as->mcp = LOONGI_ORI | LOONGF_D(r) | LOONGF_J(r) | LOONGF_I(u64&0xfff);
+    *--as->mcp = LOONGI_LU12I_W | LOONGF_D(r) | LOONGF_I20((u64>>12)&0xfffff);
   }
 }
 
@@ -142,7 +142,7 @@ static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
     emit_dj(as, LOONGI_MOVGR2FR_D, r, r64);
   }
   if ((uint32_t)((intptr_t)k-(intptr_t)J2G(as->J)) < 65536)
-    emit_lsptr(as, LOONGI_LD_D, r64, (void *)k, 0);	/*To copy a doubleword from a GPR to an FPR*/
+    emit_lsptr(as, LOONGI_LD_D, r64, (void *)k, 0);  /*To copy a doubleword from a GPR to an FPR*/
   else
     emit_loadu64(as, r64, *k);
 }
@@ -179,7 +179,7 @@ static void emit_branch(ASMState *as, LOONGIns loongi, Reg rj, Reg rd, MCode *ta
   MCode *p = as->mcp;
   ptrdiff_t delta = target - (p - 1);
   lj_assertA(((delta + 0x8000) >> 16) == 0, "branch target out of range");
-  /*BEQ BNE BGE BLZ*/
+  /* BEQ BNE BGE BLZ */
   *--p = loongi | LOONGF_D(rd) | LOONGF_J(rj) | LOONGF_I(((uint32_t)delta & 0xffffu));
   as->mcp = p;
 }
@@ -190,7 +190,7 @@ static void emit_branch21(ASMState *as, LOONGIns loongi, Reg rj, MCode *target)
   ptrdiff_t delta = target - (p - 1);
   lj_assertA(((delta + 0x100000) >> 21) == 0, "branch target out of range");
   *--p = loongi | LOONGF_J(rj) | LOONGF_I(((uint32_t)delta & 0xffffu))
-         | (((uint32_t)delta & 0x1f0000u)>>16);		/*BEQZ BNEZ BCEQZ BCNEZ*/
+         | (((uint32_t)delta & 0x1f0000u)>>16);  /* BEQZ BNEZ BCEQZ BCNEZ */
   as->mcp = p;
 }
 
@@ -198,7 +198,7 @@ static void emit_jmp(ASMState *as, MCode *target)
 {
   MCode *p = as->mcp;
   ptrdiff_t delta = target - (p - 1);
-  emit_b_bl(as, LOONGI_B, (delta&0x3ffffff));	/*offs 26*/
+  emit_b_bl(as, LOONGI_B, (delta&0x3ffffff));  /* offs 26 */
 }
 
 #define emit_move(as, dst, src) \
@@ -221,13 +221,13 @@ static void emit_call(ASMState *as, void *target)
 /* Generic move between two regs. */
 static void emit_movrr(ASMState *as, IRIns *ir, Reg dst, Reg src)
 {
-  if (dst < RID_MAX_GPR && src >= RID_MIN_FPR) { // FR to GR
+  if (dst < RID_MAX_GPR && src >= RID_MIN_FPR) {  /* FR to GR */
     emit_dj(as, irt_isnum(ir->t) ? LOONGI_MOVFR2GR_D : LOONGI_MOVFR2GR_S, dst, src);
-  } else if (dst < RID_MAX_GPR) { // GR to GR
+  } else if (dst < RID_MAX_GPR) {  /* GR to GR */
     emit_move(as, dst, src);
-  } else if (dst >= RID_MIN_FPR  && src < RID_MAX_GPR) { // GR to FR
+  } else if (dst >= RID_MIN_FPR  && src < RID_MAX_GPR) {  /* GR to FR */
     emit_dj(as, irt_isnum(ir->t) ? LOONGI_MOVGR2FR_D : LOONGI_MOVGR2FR_W, dst, src);
-  } else { // FR to FR
+  } else {  /* FR to FR */
     emit_dj(as, irt_isnum(ir->t) ? LOONGI_FMOV_D : LOONGI_FMOV_S, dst, src);
   }
 }
@@ -250,17 +250,17 @@ static void emit_lso(ASMState *as, LOONGIns loongi, Reg dest, Reg src, int64_t i
   } else {
     LOONGIns loongk = LOONGI_NOP;
     switch (loongi) {
-      case LOONGI_LD_D: loongk = LOONGI_LDX_D; break;
-      case LOONGI_LD_W: loongk = LOONGI_LDX_W; break;
-      case LOONGI_ST_D: loongk = LOONGI_STX_D; break;
-      case LOONGI_FLD_D: loongk = LOONGI_FLDX_D; break;
-      case LOONGI_FST_D: loongk = LOONGI_FSTX_D; break;
-      case LOONGI_LD_B: loongk = LOONGI_LDX_B; break;
-      case LOONGI_LD_BU: loongk = LOONGI_LDX_BU; break;
-      case LOONGI_LD_H: loongk = LOONGI_LDX_H; break;
-      case LOONGI_LD_HU: loongk = LOONGI_LDX_HU; break;
-      case LOONGI_FLD_S: loongk = LOONGI_FLDX_S; break;
-      default: break;
+    case LOONGI_LD_D: loongk = LOONGI_LDX_D; break;
+    case LOONGI_LD_W: loongk = LOONGI_LDX_W; break;
+    case LOONGI_ST_D: loongk = LOONGI_STX_D; break;
+    case LOONGI_FLD_D: loongk = LOONGI_FLDX_D; break;
+    case LOONGI_FST_D: loongk = LOONGI_FSTX_D; break;
+    case LOONGI_LD_B: loongk = LOONGI_LDX_B; break;
+    case LOONGI_LD_BU: loongk = LOONGI_LDX_BU; break;
+    case LOONGI_LD_H: loongk = LOONGI_LDX_H; break;
+    case LOONGI_LD_HU: loongk = LOONGI_LDX_HU; break;
+    case LOONGI_FLD_S: loongk = LOONGI_FLDX_S; break;
+    default: break;
     }
     Reg ofs = ra_scratch(as, allow);
     emit_djk(as, loongk, dest, src, ofs);

@@ -23,7 +23,7 @@ local lshift, rshift, arshift = bit.lshift, bit.rshift, bit.arshift
 -- Opcode maps
 ------------------------------------------------------------------------------
 
-local map_18_0 = {      -- 18-20:0, 10-17
+local map_18_0 = { -- 18-20:0, 10-17
   shift = 10, mask = 255,
   [4] = "clo.wDJ",
   [5] = "clz.wDJ",
@@ -47,7 +47,7 @@ local map_18_0 = {      -- 18-20:0, 10-17
   [23] = "ext.w.bDJ",
 }
 
-local map_18_4 = {	-- 18-20:4, 15-17
+local map_18_4 = { -- 18-20:4, 15-17
   shift = 15, mask = 7,
   [0] = "add.wDJK",
   [1] = "add.dDJK",
@@ -59,7 +59,7 @@ local map_18_4 = {	-- 18-20:4, 15-17
   [7] = "masknezDJK",
 }
 
-local map_18_5 = {	-- 18-20:5, 15-17
+local map_18_5 = { -- 18-20:5, 15-17
   shift = 15, mask = 7,
   [0] = "norDJK",
   [1] = "andDJK",
@@ -71,7 +71,7 @@ local map_18_5 = {	-- 18-20:5, 15-17
   [7] = "srl.wDJK",
 }
 
-local map_18_6 = {	-- 18-20:6, 15-17
+local map_18_6 = { -- 18-20:6, 15-17
   shift = 15, mask = 7,
   [0] = "sra.wDJK",
   [1] = "sll.dDJK",
@@ -81,7 +81,7 @@ local map_18_6 = {	-- 18-20:6, 15-17
   [7] = "rotr.dDJK",
 }
 
-local map_18_7 = {	-- 18-20:7, 15-17
+local map_18_7 = { -- 18-20:7, 15-17
   shift = 15, mask = 7,
   [0] = "mul.wDJK",
   [1] = "mulh.wDJK",
@@ -184,7 +184,7 @@ local map_fconvert5 = { -- 15-20: 111100
   [18] = "frint.dFG",
 }
 
-local map_farith = {	-- 22-25:4, 15-21
+local map_farith = { -- 22-25:4, 15-21
   shift = 15, mask = 127,
   [1] = "fadd.sFGH",
   [2] = "fadd.dFGH",
@@ -212,7 +212,7 @@ local map_farith = {	-- 22-25:4, 15-21
   [58] = map_fconvert4, [60] = map_fconvert5,
 }
 
-local map_21_0 = {	--21st:0, 18-20
+local map_21_0 = { --21st:0, 18-20
   shift = 18, mask = 7,
   [0] = map_18_0,
   [1] = { shift = 17, mask = 1, [0] = "alsl.wDJKQ", "alsl.wuDJKQ", },
@@ -224,7 +224,7 @@ local map_21_0 = {	--21st:0, 18-20
   [7] = map_18_7,
 }
 
-local map_21_1 = {      --21st:1, 22nd:0, 15-20
+local map_21_1 = { --21st:1, 22nd:0, 15-20
   shift = 21, mask = 1,
   [1] = {
     shift = 18, mask = 7,
@@ -264,7 +264,7 @@ local map_22_0 = {
   [1] = map_21_1,
 }
 
-local map_shift = {	-- 22nd:1, 21st:0
+local map_shift = { -- 22nd:1, 21st:0
   shift = 16, mask = 31,
   [0] = { shift = 15, mask = 1, [1] = "slli.wDJU", },
   [1] = "slli.dDJV",
@@ -276,7 +276,7 @@ local map_shift = {	-- 22nd:1, 21st:0
   [13] = "rotri.dDJV",
 }
 
-local map_22_1 = {        -- 22nd:1
+local map_22_1 = { -- 22nd:1
   shift = 21, mask = 1,
   [0] = map_shift,
   [1] = { shift = 15, mask = 1, [0] = "bstrins.wDJMU", [1] = "bstrpick.wDJMU", },
@@ -570,40 +570,40 @@ local function disass_ins(ctx)
       x = "fcc"..band(rshift(op, 5), 7)
     elseif p == "I" then
       x = "fcc"..band(rshift(op, 15), 7)
-    elseif p == "Q" then	-- sa2
+    elseif p == "Q" then -- sa2
       x = band(rshift(op, 15), 3)
       ctx.rel = x
       x = format("%d", x)
-    elseif p == "B" then	-- sa3
+    elseif p == "B" then -- sa3
       x = band(rshift(op, 15), 7)
       ctx.rel = x
       x = format("%d", x)
-    elseif p == "M" then	-- msbw
+    elseif p == "M" then -- msbw
       x = band(rshift(op, 16), 31)
       ctx.rel = x
       x = format("%d(0x%x)", x, x)
-    elseif p == "N" then	-- msbd
+    elseif p == "N" then -- msbd
       x = band(rshift(op, 16), 63)
       ctx.rel = x
       x = format("%d(0x%x)", x, x)
-    elseif p == "U" then	-- ui5
+    elseif p == "U" then -- ui5
       x = band(rshift(op, 10), 31)
       ctx.rel = x
       x = format("%d(0x%x)", x, x)
-    elseif p == "V" then	-- ui6
+    elseif p == "V" then -- ui6
       x = band(rshift(op, 10), 63)
       ctx.rel = x
       x = format("%d(0x%x)", x, x)
-    elseif p == "T" then	-- ui12
+    elseif p == "T" then -- ui12
       x = band(rshift(op, 10), 4095)
       ctx.rel = x
       x = format("%d(0x%x)", x, x)
-    elseif p == "W" then	-- si14
+    elseif p == "W" then -- si14
       x = band(rshift(op, 10), 16383)
       x = decode_si_imm(x, 14, 0, true, 0x3fff)
       ctx.rel = x
       x = format("%d(0x%04x)", x, band(x, 0x3fff))
-    elseif p == "X" then	-- si12
+    elseif p == "X" then -- si12
       x = band(rshift(op, 10), 4095)
       x = decode_si_imm(x, 12, 0, true, 0xfff)
       ctx.rel = x
@@ -611,29 +611,29 @@ local function disass_ins(ctx)
     elseif p == "o" then
       local disp = band((rshift(op, 10)), 0xfff)
       operands[#operands] = format("%s, %d", last, disp)
-    elseif p == "Y" then	-- si16
+    elseif p == "Y" then -- si16
       x = band(rshift(op, 10), 65535)
       x = decode_si_imm(x, 16, 0, true, 0xffff)
       ctx.rel = x
       x = format("%d(0x%04x)", x, band(x, 0xffff))
-    elseif p == "Z" then	-- si20
+    elseif p == "Z" then -- si20
       x = band(rshift(op, 10), 1048575)
       x = decode_si_imm(x, 20, 0, true, 0xfffff)
       ctx.rel = x
       x = format("%d(0x%05x)", x, band(x, 0xfffff))
-    elseif p == "C" then	-- code
+    elseif p == "C" then -- code
       x = band(rshift(op, 0), 32767)
-    elseif p == "O" then	-- offs[15:0]
+    elseif p == "O" then -- offs[15:0]
       x = band(rshift(op, 10), 65535)
       x = decode_si_imm(x, 16, 0, true, 0xffff)
       ctx.rel = x
       x = format("%d(0x%04x)", x, band(x, 0xffff))
-    elseif p == "L" then	-- offs[15:0] + offs[20:16]
+    elseif p == "L" then -- offs[15:0] + offs[20:16]
       x = lshift(band(op, 31), 16) + band(rshift(op, 10), 65535)
       x = decode_si_imm(x, 21, 0, true, 0x1fffff)
       ctx.rel = x
       x = format("%d(0x%06x)", x, band(x, 0x1fffff))
-    elseif p == "P" then	-- offs[15:0] + offs[25:16]
+    elseif p == "P" then -- offs[15:0] + offs[25:16]
       x = lshift(band(op, 1023), 16) + band(rshift(op, 10), 65535)
       x = decode_si_imm(x, 26, 0, true, 0x3ffffff)
       ctx.rel = x

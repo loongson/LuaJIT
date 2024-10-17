@@ -88,8 +88,8 @@ static void asm_guard(ASMState *as, LOONGIns loongi, Reg rj, Reg rd)
     loongi = loongi ^ ((loongi>>28) == 4 ? 0x00000100u : 0x04000000u);  /* Invert cond. BEQ BNE BGE BLZ*/
     target = p - 1;  /* Patch target later in asm_loop_fixup. */
   }
-    emit_branch(as, loongi, rj, rd, target);
-    emit_dji(as, LOONGI_ADDI_D, RID_TMP, RID_ZERO, as->snapno);
+  emit_branch(as, loongi, rj, rd, target);
+  emit_dji(as, LOONGI_ADDI_D, RID_TMP, RID_ZERO, as->snapno);
 }
 
 static void asm_guard21(ASMState *as, LOONGIns loongi, Reg rj)
@@ -103,8 +103,8 @@ static void asm_guard21(ASMState *as, LOONGIns loongi, Reg rj)
     loongi = loongi ^ ((loongi>>28) == 4 ? 0x00000100u : 0x04000000u);  /* Invert cond. BCEQZ BCNEZ*/
     target = p - 1;  /* Patch target later in asm_loop_fixup. */
   }
-    emit_branch21(as, loongi, rj, target);
-    emit_dji(as, LOONGI_ADDI_D, RID_TMP, RID_ZERO, as->snapno);
+  emit_branch21(as, loongi, rj, target);
+  emit_dji(as, LOONGI_ADDI_D, RID_TMP, RID_ZERO, as->snapno);
 }
 
 /* -- Operand fusion ------------------------------------------------------ */
@@ -129,8 +129,7 @@ static int noconflict(ASMState *as, IRRef ref, IROp conflict)
 static int32_t asm_fuseabase(ASMState *as, IRRef ref)
 {
   IRIns *ir = IR(ref);
-  if (ir->o == IR_TNEW && ir->op1 <= LJ_MAX_COLOSIZE &&
-      !neverfuse(as) && noconflict(as, ref, IR_NEWREF))
+  if (ir->o == IR_TNEW && ir->op1 <= LJ_MAX_COLOSIZE && !neverfuse(as) && noconflict(as, ref, IR_NEWREF))
     return (int32_t)sizeof(GCtab);
   return 0;
 }
@@ -192,8 +191,7 @@ static void asm_fusexref(ASMState *as, LOONGIns loongi, Reg rd, IRRef ref,
   if (ra_noreg(ir->r) && canfuse(as, ir)) {
     intptr_t ofs2;
     if (ir->o == IR_ADD) {
-      if (irref_isk(ir->op2) && (ofs2 = ofs + get_kval(as, ir->op2),
-				 checki12(ofs2))) {
+      if (irref_isk(ir->op2) && (ofs2 = ofs + get_kval(as, ir->op2), checki12(ofs2))) {
 	ref = ir->op1;
 	ofs = (int32_t)ofs2;
       }
@@ -224,14 +222,12 @@ static void asm_fusexref(ASMState *as, LOONGIns loongi, Reg rd, IRRef ref,
 }
 
 /* Fuse FP multiply-add/sub. */
-
 static int asm_fusemadd(ASMState *as, IRIns *ir, LOONGIns loongi, LOONGIns loongir)
 {
   IRRef lref = ir->op1, rref = ir->op2;
   IRIns *irm;
   if (lref != rref &&
-      ((mayfuse(as, lref) && (irm = IR(lref), irm->o == IR_MUL) &&
-       ra_noreg(irm->r)) ||
+      ((mayfuse(as, lref) && (irm = IR(lref), irm->o == IR_MUL) && ra_noreg(irm->r)) ||
        (mayfuse(as, rref) && (irm = IR(rref), irm->o == IR_MUL) &&
        (rref = lref, loongi = loongir, ra_noreg(irm->r))))) {
     Reg dest = ra_dest(as, ir, RSET_FPR);
@@ -345,8 +341,8 @@ static void asm_callround(ASMState *as, IRIns *ir, IRCallID id)
 {
   /* The modified regs must match with the *.dasc implementation. */
   RegSet drop = RID2RSET(RID_R12)|RID2RSET(RID_R13)|RID2RSET(RID_F0)|
-		RID2RSET(RID_F4)|RID2RSET(RID_F9)|RID2RSET(RID_F22)
-		|RID2RSET(RID_F23);
+		RID2RSET(RID_F4)|RID2RSET(RID_F9)|RID2RSET(RID_F22)|
+		RID2RSET(RID_F23);
   if (ra_hasreg(ir->r)) rset_clear(drop, ir->r);
   ra_evictset(as, drop);
   ra_destreg(as, ir, RID_FPRET);
@@ -361,7 +357,7 @@ static void asm_retf(ASMState *as, IRIns *ir)
 {
   Reg base = ra_alloc1(as, REF_BASE, RSET_GPR);
   void *pc = ir_kptr(IR(ir->op2));
-  int32_t delta = 1+LJ_FR2+bc_a(*((const BCIns *)pc - 1));
+  int32_t delta = 1 + LJ_FR2 + bc_a(*((const BCIns *)pc - 1));
   as->topslot -= (BCReg)delta;
   if ((int32_t)as->topslot < 0) as->topslot = 0;
   irt_setmark(IR(REF_BASE)->t);  /* Children must not coalesce with BASE reg. */
@@ -382,8 +378,7 @@ static void asm_bufhdr_write(ASMState *as, Reg sb)
   IRIns irgc;
   irgc.ot = IRT(0, IRT_PGC);  /* GC type. */
   emit_storeofs(as, &irgc, RID_TMP, sb, offsetof(SBuf, L));
-  emit_djml(as, LOONGI_BSTRINS_D, RID_TMP, tmp,
-            lj_fls(SBUF_MASK_FLAG), 0);
+  emit_djml(as, LOONGI_BSTRINS_D, RID_TMP, tmp, lj_fls(SBUF_MASK_FLAG), 0);
   emit_getgl(as, RID_TMP, cur_L);
   emit_loadofs(as, &irgc, tmp, sb, offsetof(SBuf, L));
 }
@@ -415,7 +410,7 @@ static void asm_tobit(ASMState *as, IRIns *ir)
 
 static void asm_conv(ASMState *as, IRIns *ir)
 {
-  IRType st = (IRType)(ir->op2 & IRCONV_SRCMASK);	// source type
+  IRType st = (IRType)(ir->op2 & IRCONV_SRCMASK);
   int stfp = (st == IRT_NUM || st == IRT_FLOAT);
   int st64 = (st == IRT_I64 || st == IRT_U64 || st == IRT_P64);
   IRRef lref = ir->op1;
@@ -441,8 +436,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
       /* Must perform arithmetic with doubles to keep the precision. */
       emit_djk(as, LOONGI_FADD_D, ftmp, ftmp, tmp);
       emit_dj(as, LOONGI_FFINT_D_W, ftmp, ftmp);
-      emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f),
-		 (void *)&as->J->k64[LJ_K64_2P31], RSET_GPR);
+      emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_2P31], RSET_GPR);
       emit_dj(as, LOONGI_MOVGR2FR_W, ftmp, RID_TMP);
       emit_djk(as, LOONGI_XOR, RID_TMP, RID_TMP, left);
       emit_dji(as, LOONGI_ADDU16I_D, RID_TMP, RID_R0, 0x8000);
@@ -491,8 +485,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
       /* Must perform arithmetic with doubles to keep the precision. */
       emit_djk(as, LOONGI_FADD_D, dest, dest, tmp);
       emit_dj(as, LOONGI_FFINT_D_W, dest, dest);
-      emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f),
-		 (void *)&as->J->k64[LJ_K64_2P31], RSET_GPR);
+      emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_2P31], RSET_GPR);
       emit_dj(as, LOONGI_MOVGR2FR_W, dest, RID_TMP);
       emit_djk(as, LOONGI_XOR, RID_TMP, RID_TMP, left);
       emit_dji(as, LOONGI_ADDU16I_D, RID_TMP, RID_R0, 0x8000);
@@ -527,8 +520,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
   } else if (stfp) {  /* FP to integer conversion. */
     if (irt_isguard(ir->t)) {
       /* Checked conversions are only supported from number to int. */
-      lj_assertA(irt_isint(ir->t) && st == IRT_NUM,
-		 "bad type for checked CONV");
+      lj_assertA(irt_isint(ir->t) && st == IRT_NUM, "bad type for checked CONV");
       asm_tointg(as, ir, ra_alloc1(as, lref, RSET_FPR));
     } else {
       Reg dest = ra_dest(as, ir, RSET_GPR);
@@ -539,16 +531,12 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	emit_djk(as, LOONGI_XOR, dest, dest, RID_TMP);
 	emit_dji(as, LOONGI_ADDU16I_D, RID_TMP, RID_R0, 0x8000);
 	emit_dj(as, LOONGI_MOVFR2GR_S, dest, tmp);
-	emit_dj(as, st == IRT_FLOAT ? LOONGI_FTINTRM_W_S : LOONGI_FTINTRM_W_D,
-		tmp, tmp);
-	emit_djk(as, st == IRT_FLOAT ? LOONGI_FSUB_S : LOONGI_FSUB_D,
-		 tmp, left, tmp);
+	emit_dj(as, st == IRT_FLOAT ? LOONGI_FTINTRM_W_S : LOONGI_FTINTRM_W_D, tmp, tmp);
+	emit_djk(as, st == IRT_FLOAT ? LOONGI_FSUB_S : LOONGI_FSUB_D, tmp, left, tmp);
 	if (st == IRT_FLOAT)
-	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f),
-		     (void *)&as->J->k32[LJ_K32_2P31], RSET_GPR);
+	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f), (void *)&as->J->k32[LJ_K32_2P31], RSET_GPR);
 	else
-	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f),
-		     (void *)&as->J->k64[LJ_K64_2P31], RSET_GPR);
+	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_2P31], RSET_GPR);
       } else if (irt_isu64(ir->t)) {  /* FP to U64 conversion. */
 	MCLabel l_end;
 	emit_dj(as, LOONGI_MOVFR2GR_D, dest, tmp);
@@ -557,26 +545,22 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	if (st == IRT_NUM) {
 	  emit_dj(as, LOONGI_FTINTRZ_L_D, tmp, tmp);
 	  emit_djk(as, LOONGI_FADD_D, tmp, left, tmp);
-	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f),
-		     (void *)&as->J->k64[LJ_K64_M2P64],
+	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_M2P64],
 		     rset_exclude(RSET_GPR, dest));
 	  emit_branch21(as, LOONGI_BCNEZ, 0, l_end);
 	  emit_dj(as, LOONGI_FTINTRZ_L_D, tmp, left);
 	  emit_djk(as, LOONGI_FCMP_CLT_D, 0, left, tmp);
-	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f),
-		     (void *)&as->J->k64[LJ_K64_2P63],
+	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_2P63],
 		     rset_exclude(RSET_GPR, dest));
 	} else {
 	  emit_dj(as, LOONGI_FTINTRZ_L_S, tmp, tmp);
 	  emit_djk(as, LOONGI_FADD_S, tmp, left, tmp);
-	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f),
-		     (void *)&as->J->k32[LJ_K32_M2P64],
+	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f), (void *)&as->J->k32[LJ_K32_M2P64],
 		     rset_exclude(RSET_GPR, dest));
 	  emit_branch21(as, LOONGI_BCNEZ, 0, l_end);
 	  emit_dj(as, LOONGI_FTINTRZ_L_S, tmp, left);
 	  emit_djk(as, LOONGI_FCMP_CLT_S, 0, left, tmp);
-	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f),
-		     (void *)&as->J->k32[LJ_K32_2P63],
+	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f), (void *)&as->J->k32[LJ_K32_2P63],
 		     rset_exclude(RSET_GPR, dest));
 	}
       } else {
@@ -592,9 +576,9 @@ static void asm_conv(ASMState *as, IRIns *ir)
     if (st >= IRT_I8 && st <= IRT_U16) {  /* Extend to 32 bit integer. */
       Reg left = ra_alloc1(as, ir->op1, RSET_GPR);
       lj_assertA(irt_isint(ir->t) || irt_isu32(ir->t), "bad type for CONV EXT");
-      if ((ir->op2 & IRCONV_SEXT)) {	// sign-extend
+      if ((ir->op2 & IRCONV_SEXT)) {  /* sign-extend */
 	emit_dj(as, st == IRT_I8 ? LOONGI_EXT_W_B : LOONGI_EXT_W_H, dest, left);
-      } else {	// zero-extend
+      } else {  /* zero-extend */
         int msbd = st == IRT_U8 ? 7 : 15;
         emit_djml(as, LOONGI_BSTRPICK_D, dest, left, msbd, 0);
       }
@@ -613,13 +597,14 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	}
       } else {
 	if (st64 && !(ir->op2 & IRCONV_NONE)) {
-	  /* This is either a 32 bit reg/reg mov which zeroes the hiword
+	  /*
+	  ** This is either a 32 bit reg/reg mov which zeroes the hiword
 	  ** or a load of the loword from a 64 bit address.
 	  */
 	  Reg left = ra_alloc1(as, lref, RSET_GPR);
 	  emit_djml(as, LOONGI_BSTRPICK_D, dest, left, 31, 0);
 	} else {  /* 32/32 bit no-op (cast). */
-	  ra_leftov(as, dest, lref);	/* Do nothing, but may need to move regs. */
+	  ra_leftov(as, dest, lref);  /* Do nothing, but may need to move regs. */
 	}
       }
     }
@@ -636,7 +621,7 @@ static void asm_strto(ASMState *as, IRIns *ir)
   ra_evictset(as, drop);
   if (ir->s) ofs = sps_scale(ir->s);
   asm_guard(as, LOONGI_BEQ, RID_RET, RID_ZERO);  /* Test return status. */
-  args[0] = ir->op1;      /* GCstr *str */
+  args[0] = ir->op1;  /* GCstr *str */
   args[1] = ASMREF_TMP1;  /* TValue *n  */
   asm_gencall(as, ci, args);
   /* Store the result to the spill slot or temp slots. */
@@ -678,7 +663,7 @@ static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
 }
 
 /* Get pointer to TValue. */
-static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode)	// todo-new
+static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode)
 {
   int32_t tmpofs = (int32_t)(offsetof(global_State, tmptv)-32768);
   RegSet allow = RSET_GPR;
@@ -726,7 +711,8 @@ static void asm_aref(ASMState *as, IRIns *ir)
   emit_dju(as, LOONGI_SLLI_D, RID_TMP, idx, 3);
 }
 
-/* Inlined hash lookup. Specialized for key type and for const keys.
+/*
+** Inlined hash lookup. Specialized for key type and for const keys.
 ** The equivalent C code is:
 **   Node *n = hashkey(t, key);
 **   do {
@@ -776,7 +762,7 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       key = ra_alloc1(as, refkey, allow);
       rset_clear(allow, key);
     }
-  } 
+  }
 
   /* Key not found in chain: jump to exit (if merged) or load niltv. */
   l_end = emit_label(as);
@@ -830,7 +816,7 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
     emit_djk(as, LOONGI_SUB_W, tmp1, tmp2, tmp1);
     emit_dju(as, LOONGI_SLLI_W, tmp1, tmp1, 3);
     emit_dju(as, LOONGI_SLLI_W, tmp2, tmp1, 5);
-    emit_djk(as, LOONGI_AND, tmp1, tmp2, tmphash);	// idx = hi & tab->hmask
+    emit_djk(as, LOONGI_AND, tmp1, tmp2, tmphash);  /* idx = hi & tab->hmask */
     emit_dji(as, LOONGI_LD_D, dest, tab, ((int32_t)offsetof(GCtab, node))&0xfff);
     emit_dji(as, LOONGI_LD_W, tmp2, tab, ((int32_t)offsetof(GCtab, hmask))&0xfff);
     if (isk) {
@@ -847,13 +833,13 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
       emit_dju(as, LOONGI_ROTRI_W, dest, tmp1, (-HASH_ROT1)&0x1f);
       if (irt_isnum(kt)) {
 	emit_dju(as, LOONGI_SLLI_W, tmp1, tmp1, 1);
-	emit_dju(as, LOONGI_SRAI_D, tmp1, tmp1, 32);	// hi
-	emit_dju(as, LOONGI_SLLI_W, tmp2, tmp1, 0);	// lo
+	emit_dju(as, LOONGI_SRAI_D, tmp1, tmp1, 32);  /* hi */
+	emit_dju(as, LOONGI_SLLI_W, tmp2, tmp1, 0);  /* lo */
 	emit_dj(as, LOONGI_MOVFR2GR_D, tmp1, key);
       } else {
 	checkmclim(as);
-	emit_dju(as, LOONGI_SRAI_D, tmp1, tmp1, 32);	// hi
-	emit_dju(as, LOONGI_SLLI_W, tmp2, key, 0);	// lo
+	emit_dju(as, LOONGI_SRAI_D, tmp1, tmp1, 32);  /* hi */
+	emit_dju(as, LOONGI_SLLI_W, tmp2, key, 0);  /* lo */
 	emit_djk(as, LOONGI_ADD_D, tmp1, key, type);
       }
     }
@@ -953,23 +939,17 @@ static LOONGIns asm_fxloadins(ASMState *as, IRIns *ir)
 {
   UNUSED(as);
   switch (irt_type(ir->t)) {
-  case IRT_I8:
-    return LOONGI_LD_B;
-  case IRT_U8:
-    return LOONGI_LD_BU;
-  case IRT_I16:
-    return LOONGI_LD_H;
-  case IRT_U16:
-    return LOONGI_LD_HU;
+  case IRT_I8: return LOONGI_LD_B;
+  case IRT_U8: return LOONGI_LD_BU;
+  case IRT_I16: return LOONGI_LD_H;
+  case IRT_U16: return LOONGI_LD_HU;
   case IRT_NUM:
     lj_assertA(!LJ_SOFTFP32, "unsplit FP op");
     return LOONGI_FLD_D;
   /* fallthrough */
-  case IRT_FLOAT:
-    return LOONGI_FLD_S;
+  case IRT_FLOAT: return LOONGI_FLD_S;
   /* fallthrough */
-  default:
-    return irt_is64(ir->t) ? LOONGI_LD_D : LOONGI_LD_W;
+  default: return irt_is64(ir->t) ? LOONGI_LD_D : LOONGI_LD_W;
   }
 }
 
@@ -1009,7 +989,7 @@ static void asm_fload(ASMState *as, IRIns *ir)
       }
     }
     ofs = field_ofs[ir->op2];
-  lj_assertA(!irt_isfp(ir->t), "bad FP FLOAD");
+    lj_assertA(!irt_isfp(ir->t), "bad FP FLOAD");
   }
   rset_clear(allow, idx);
   emit_lso(as, loongi, dest, idx, ofs, allow);
@@ -1052,7 +1032,6 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   RegSet allow = RSET_GPR;
   int32_t ofs = 0;
   IRType1 t = ir->t;
-
   type = ra_scratch(as, allow);
   rset_clear(allow, type);
 
@@ -1074,8 +1053,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
     asm_guard(as, LOONGI_BEQ, tmp2, RID_ZERO);
     emit_dju(as, LOONGI_SLTUI, tmp2, type, ((int32_t)LJ_TISNUM)&0xfff);
   } else {
-    asm_guard(as, LOONGI_BNE, type,
-	      ra_allock(as, (int32_t)irt_toitype(t), allow));
+    asm_guard(as, LOONGI_BNE, type, ra_allock(as, (int32_t)irt_toitype(t), allow));
   }
   if (ra_hasreg(dest)) {
     if (irt_isnum(t)) {
@@ -1276,10 +1254,10 @@ static void asm_tbar(ASMState *as, IRIns *ir)
   MCLabel l_end = emit_label(as);
   emit_dji(as, LOONGI_ST_D, link, tab, ((int32_t)offsetof(GCtab, gclist))&0xfff);
   emit_dji(as, LOONGI_ST_B, mark, tab, ((int32_t)offsetof(GCtab, marked))&0xfff);
-  emit_setgl(as, tab, gc.grayagain);	// make tab gray again
+  emit_setgl(as, tab, gc.grayagain);
   emit_getgl(as, link, gc.grayagain);
-  emit_branch(as, LOONGI_BEQ, RID_TMP, RID_ZERO, l_end);	// black: not jump
-  emit_djk(as, LOONGI_XOR, mark, mark, RID_TMP);	// mark=0: gray
+  emit_branch(as, LOONGI_BEQ, RID_TMP, RID_ZERO, l_end);
+  emit_djk(as, LOONGI_XOR, mark, mark, RID_TMP);
   emit_dju(as, LOONGI_ANDI, RID_TMP, mark, LJ_GC_BLACK);
   emit_dji(as, LOONGI_LD_BU, mark, tab, ((int32_t)offsetof(GCtab, marked))&0xfff);
 }
@@ -1291,7 +1269,7 @@ static void asm_obar(ASMState *as, IRIns *ir)
   MCLabel l_end;
   Reg obj, val, tmp;
   /* No need for other object barriers (yet). */
-  lj_assertA(IR(ir->op1)->o == IR_UREFC, "bad OBAR type");	// Closed upvalue
+  lj_assertA(IR(ir->op1)->o == IR_UREFC, "bad OBAR type");
   ra_evictset(as, RSET_SCRATCH);
   l_end = emit_label(as);
   args[0] = ASMREF_TMP1;  /* global_State *g */
@@ -1301,7 +1279,7 @@ static void asm_obar(ASMState *as, IRIns *ir)
   tmp = ra_scratch(as, rset_exclude(RSET_GPR, obj));
   emit_branch(as, LOONGI_BEQ, tmp, RID_ZERO, l_end);
   emit_addk(as, ra_releasetmp(as, ASMREF_TMP1), RID_JGL, -32768, RSET_GPR);
-  emit_branch(as, LOONGI_BEQ, RID_TMP, RID_ZERO, l_end);	// black: jump
+  emit_branch(as, LOONGI_BEQ, RID_TMP, RID_ZERO, l_end);
   emit_dju(as, LOONGI_ANDI, tmp, tmp, LJ_GC_BLACK);
   emit_dju(as, LOONGI_ANDI, RID_TMP, RID_TMP, LJ_GC_WHITES);
   val = ra_alloc1(as, ir->op2, rset_exclude(RSET_GPR, obj));
@@ -1350,7 +1328,7 @@ static void asm_add(ASMState *as, IRIns *ir)
     Reg left = ra_hintalloc(as, ir->op1, dest, RSET_GPR);
     if (irref_isk(ir->op2)) {
       intptr_t k = get_kval(as, ir->op2);
-      if (LOONGF_S_OK(k, 12)) {		// si12
+      if (LOONGF_S_OK(k, 12)) {
         if (irt_is64(t)) {
           emit_dji(as, LOONGI_ADDI_D, dest, left, k&0xfff);
         } else {
@@ -1384,8 +1362,7 @@ static void asm_mul(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
     asm_fparith(as, ir, LOONGI_FMUL_D);
-  } else
-  {
+  } else {
     Reg dest = ra_dest(as, ir, RSET_GPR);
     Reg right, left = ra_alloc2(as, ir, RSET_GPR);
     right = (left >> 8); left &= 255;
@@ -1427,7 +1404,7 @@ static void asm_arithov(ASMState *as, IRIns *ir)
   if (irref_isk(ir->op2)) {
     int k = IR(ir->op2)->i;
     if (ir->o == IR_SUBOV) k = (int)(~(unsigned int)k+1u);
-    if (LOONGF_S_OK(k, 12)) {	/* (dest < left) == (k >= 0 ? 1 : 0) */
+    if (LOONGF_S_OK(k, 12)) {  /* (dest < left) == (k >= 0 ? 1 : 0) */
       left = ra_alloc1(as, ir->op1, allow);
       asm_guard(as, k >= 0 ? LOONGI_BNE : LOONGI_BEQ, tmp2, RID_ZERO);
       emit_djk(as, LOONGI_SLT, tmp2, dest, dest == left ? tmp2 : left);
@@ -1463,14 +1440,14 @@ static void asm_mulov(ASMState *as, IRIns *ir)
   Reg dest = ra_dest(as, ir, RSET_GPR);
   Reg tmp, tmp2, right, left = ra_alloc2(as, ir, RSET_GPR);
   right = (left >> 8); left &= 255;
-  tmp = ra_scratch(as, rset_exclude(rset_exclude(rset_exclude(RSET_GPR, left),
-						 right), dest));
-  tmp2 = ra_scratch(as, rset_exclude(rset_exclude(rset_exclude(rset_exclude(RSET_GPR, left),
-						right), dest), tmp));
+  tmp = ra_scratch(as, rset_exclude(rset_exclude(
+			rset_exclude(RSET_GPR, left), right), dest));
+  tmp2 = ra_scratch(as, rset_exclude(rset_exclude(rset_exclude(
+			rset_exclude(RSET_GPR, left), right), dest), tmp));
   asm_guard(as, LOONGI_BNE, tmp2, tmp);
   emit_dju(as, LOONGI_SRAI_W, tmp2, dest, 31);
-  emit_djk(as, LOONGI_MUL_W, dest, left, right);	// dest: [31:0]+signextend
-  emit_djk(as, LOONGI_MULH_W, tmp, left, right);	// tmp: [63:32]
+  emit_djk(as, LOONGI_MUL_W, dest, left, right);
+  emit_djk(as, LOONGI_MULH_W, tmp, left, right);
 }
 
 static void asm_bnot(ASMState *as, IRIns *ir)
@@ -1583,28 +1560,24 @@ static void asm_fpcomp(ASMState *as, IRIns *ir)
   Reg right, left = ra_alloc2(as, ir, RSET_FPR);
   right = (left >> 8); left &= 255;
   asm_guard21(as, (op&1) ? LOONGI_BCNEZ : LOONGI_BCEQZ, 0);
-  // use case
   switch (op) {
-    case IR_LT: case IR_UGE:
-      emit_djk(as, LOONGI_FCMP_CLT_D, 0, left, right);
-      break;
-    case IR_GE: case IR_ULT:
-      emit_djk(as, LOONGI_FCMP_CULT_D, 0, left, right);
-      break;
-    case IR_LE: case IR_UGT: case IR_ABC:
-      emit_djk(as, LOONGI_FCMP_CLE_D, 0, left, right);
-      break;
-    case IR_ULE: case IR_GT:
-      emit_djk(as, LOONGI_FCMP_CULE_D, 0, left, right);
-      break;
-    case IR_EQ: case IR_NE:
-      emit_djk(as, LOONGI_FCMP_CEQ_D, 0, left, right);
-      break;
-    //case IR_NE:
-    //  emit_djk(as, LOONGI_FCMP_CNE_D, 0, left, right);
-    //  break;
-    default:
-      break;
+  case IR_LT: case IR_UGE:
+    emit_djk(as, LOONGI_FCMP_CLT_D, 0, left, right);
+    break;
+  case IR_GE: case IR_ULT:
+    emit_djk(as, LOONGI_FCMP_CULT_D, 0, left, right);
+    break;
+  case IR_LE: case IR_UGT: case IR_ABC:
+    emit_djk(as, LOONGI_FCMP_CLE_D, 0, left, right);
+    break;
+  case IR_ULE: case IR_GT:
+    emit_djk(as, LOONGI_FCMP_CULE_D, 0, left, right);
+    break;
+  case IR_EQ: case IR_NE:
+    emit_djk(as, LOONGI_FCMP_CEQ_D, 0, left, right);
+    break;
+  default:
+    break;
   }
 }
 
@@ -1620,11 +1593,11 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   if (op == IR_ABC) op = IR_UGT;
   if ((op&4) == 0 && irref_isk(ir->op2) && get_kval(as, ir->op2) == 0) {
     switch (op) {
-      case IR_GT: asm_guard(as, LOONGI_BGE, RID_ZERO, left); break;
-      case IR_LE: asm_guard(as, LOONGI_BLT, RID_ZERO, left); break;
-      case IR_GE: asm_guard(as, LOONGI_BLT, left, RID_ZERO); break;
-      case IR_LT: asm_guard(as, LOONGI_BGE, left, RID_ZERO); break;
-      default: break;
+    case IR_GT: asm_guard(as, LOONGI_BGE, RID_ZERO, left); break;
+    case IR_LE: asm_guard(as, LOONGI_BLT, RID_ZERO, left); break;
+    case IR_GE: asm_guard(as, LOONGI_BLT, left, RID_ZERO); break;
+    case IR_LT: asm_guard(as, LOONGI_BGE, left, RID_ZERO); break;
+    default: break;
     }
     return;
   }
@@ -1712,7 +1685,7 @@ static void asm_stack_check(ASMState *as, BCReg topslot,
     ra_modified(as, tmp);
   } else {
     tmp = RID_RET;
-    emit_dji(as, LOONGI_LD_D, tmp, RID_SP, 0);	/* Restore tmp1 register. */
+    emit_dji(as, LOONGI_LD_D, tmp, RID_SP, 0);  /* Restore tmp1 register. */
   }
   as->snapno = exitno;
   asm_guard(as, LOONGI_BNE, tmp, RID_ZERO);
@@ -1792,7 +1765,6 @@ static void asm_gc_check(ASMState *as)
   args[1] = ASMREF_TMP2;  /* MSize steps     */
   asm_gencall(as, ci, args);
   tmp1 = ra_releasetmp(as, ASMREF_TMP1);
-  //emit_dj32i(as, tmp1, RID_JGL, -32768);
   tmp2 = ra_releasetmp(as, ASMREF_TMP2);
   ra_allockreg(as, (int64_t)(J2G(as->J)), tmp1);
   emit_loadi(as, tmp2, as->gcsteps);
@@ -1815,9 +1787,9 @@ static void asm_loop_fixup(ASMState *as)
     /* asm_guard* already inverted the bceqz/bcnez/beq/bne/blt/bge, and patched the final b. */
     uint32_t mask = (p[-2] & 0xfc000000) == 0x48000000 ? 0x1fffffu : 0xffffu;
     ptrdiff_t delta = target - (p - 2);
-    if (mask == 0x1fffffu) {	/* BCEQZ  BCNEZ*/
+    if (mask == 0x1fffffu) {  /* BCEQZ  BCNEZ*/
       p[-2] = p[-2] | LOONGF_I((uint32_t)delta & 0xffffu) | (((uint32_t)delta & 0x1f0000u) >> 16);
-    } else {	/* BEQ BNE BLE BGE BLTU BGEU*/
+    } else {  /* BEQ BNE BLE BGE BLTU BGEU*/
       p[-2] |= LOONGF_I(delta & 0xffffu);
     }
     if (p[-1] == 0)
@@ -1832,7 +1804,7 @@ static void asm_loop_fixup(ASMState *as)
 /* Fixup the tail of the loop. */
 static void asm_loop_tail_fixup(ASMState *as)
 {
-  UNUSED(as);	/* Nothing to do. */
+  UNUSED(as);  /* Nothing to do. */
 }
 
 /* -- Head of trace ------------------------------------------------------- */
@@ -1861,7 +1833,7 @@ static Reg asm_head_side_base(ASMState *as, IRIns *irp)
     if (rset_test(as->modset, r) || irt_ismarked(ir->t))
       ir->r = RID_INIT;  /* No inheritance for modified BASE register. */
     if (irp->r == r) {
-      return r;	/* Same BASE register already coalesced. */
+      return r;  /* Same BASE register already coalesced. */
     } else if (ra_hasreg(irp->r) && rset_test(as->freeset, irp->r)) {
       emit_move(as, r, irp->r);  /* Move from coalesced parent reg. */
       return irp->r;
@@ -1929,7 +1901,6 @@ static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)
   }
   if (nslots > as->evenspill)  /* Leave room for args in stack slots. */
     as->evenspill = nslots;
-//  return REGSP_HINT(RID_RET); // TODO
   return irt_isfp(ir->t) ? REGSP_HINT(RID_FPRET) : REGSP_HINT(RID_RET);
 }
 
@@ -1983,21 +1954,21 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
 	  Reg rd = ins & 0x1f;
 	  switch (ins & 0xfc000000u) {
           case LOONGI_BEQ:
-          *p = LOONGI_SUB_D | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-          p[1] = LOONGI_BEQZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
-	  break;
+            *p = LOONGI_SUB_D | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
+            p[1] = LOONGI_BEQZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
+	    break;
 	  case LOONGI_BNE:
-          *p = LOONGI_SUB_D | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-          p[1] = LOONGI_BNEZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
-	  break;
+            *p = LOONGI_SUB_D | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
+            p[1] = LOONGI_BNEZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
+	    break;
 	  case LOONGI_BLT:
-          *p = LOONGI_SLT | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-          p[1] = LOONGI_BNEZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
-	  break;
+            *p = LOONGI_SLT | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
+            p[1] = LOONGI_BNEZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
+	    break;
 	  case LOONGI_BGE:
-          *p = LOONGI_SLT | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-          p[1] = LOONGI_BEQZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
-	  break;
+            *p = LOONGI_SLT | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
+            p[1] = LOONGI_BEQZ | LOONGF_J(RID_TMP) | LOONGF_I(delta & 0xffff) | ((delta & 0x1f0000) >> 16);
+	    break;
 	  }
 	} else {
           lj_assertJ(LOONGF_S_OK(delta, 21), "branch target out of range");

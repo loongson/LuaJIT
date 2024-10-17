@@ -114,6 +114,7 @@ static LJ_AINLINE uint32_t *exitstub_trace_addr_(uint32_t *p)
   while (*p == 0x03400000) p++;		/* Skip LOONGI_NOP. */
   return p;
 }
+
 /* Avoid dependence on lj_jit.h if only including lj_target.h. */
 #define exitstub_trace_addr(T, exitno) \
   exitstub_trace_addr_((MCode *)((char *)(T)->mcode + (T)->szmcode))
@@ -133,7 +134,7 @@ static LJ_AINLINE uint32_t *exitstub_trace_addr_(uint32_t *p)
 #define LOONGF_S_OK(x, b) ((((x) + (1 << (b-1))) >> (b)) == 0)
 
 typedef enum LOONGIns {
-/* Integer instructions. */
+  /* Integer instructions. */
   LOONGI_MOVE = 0x00150000,
   LOONGI_NOP = 0x03400000,
 
@@ -211,7 +212,7 @@ typedef enum LOONGIns {
   LOONGI_STX_D = 0x381c0000,
   LOONGI_LDX_W = 0x38080000,
   LOONGI_STX_W = 0x38180000,
-  LOONGI_STX_B = 0x38100000, 
+  LOONGI_STX_B = 0x38100000,
   LOONGI_STX_H = 0x38140000,
   LOONGI_FLD_S = 0x2b000000,
   LOONGI_FST_S = 0x2b400000,
@@ -312,4 +313,3 @@ typedef enum LOONGIns {
 } LOONGIns;
 
 #endif
-
