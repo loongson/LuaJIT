@@ -1227,6 +1227,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bl extern lj_strfmt_number	// (lua_State *L, cTValue *o)
   |  // Returns GCstr *.
   |  addi.d TMP1, r0, LJ_TSTR
+  |  ld.d BASE, L->base
   |  settp CARG1, TMP1
   |  b ->fff_restv
   |
