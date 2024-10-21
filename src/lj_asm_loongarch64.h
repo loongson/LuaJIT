@@ -163,18 +163,15 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow)
     } else if (ir->o == IR_UREFC) {
       if (irref_isk(ir->op1)) {
 	GCfunc *fn = ir_kfunc(IR(ir->op1));
-	intptr_t ofs = (intptr_t)&gcref(fn->l.uvptr[(ir->op2 >> 8)])->uv.tv;
-	intptr_t jgl = (intptr_t)J2G(as->J);
-	if ((uintptr_t)(ofs-jgl) < 65536) {
-	  *ofsp = ofs-jgl-32768;
+	GCupval *uv = &gcref(fn->l.uvptr[(ir->op2 >> 8)])->uv;
+	intptr_t ofs = ((intptr_t)((uintptr_t)(&uv->tv) - (uintptr_t)&J2GG(as->J)->g));
+	if (checki12(ofs)) {
+	  *ofsp = (int32_t)ofs;
 	  return RID_JGL;
-	} else {
-	  *ofsp = (int16_t)ofs;
-	  return ra_allock(as, ofs-(int16_t)ofs, allow);
 	}
       }
     } else if (ir->o == IR_TMPREF) {
-      *ofsp = (int32_t)(offsetof(global_State, tmptv)-32768);
+      *ofsp = (int32_t)(offsetof(global_State, tmptv));
       return RID_JGL;
     }
   }
@@ -665,7 +662,7 @@ static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
 /* Get pointer to TValue. */
 static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode)
 {
-  int32_t tmpofs = (int32_t)(offsetof(global_State, tmptv)-32768);
+  int32_t tmpofs = (int32_t)(offsetof(global_State, tmptv));
   RegSet allow = RSET_GPR;
   if ((mode & IRTMPREF_IN1)) {
     IRIns *ir = IR(ref);
@@ -1278,7 +1275,7 @@ static void asm_obar(ASMState *as, IRIns *ir)
   obj = IR(ir->op1)->r;
   tmp = ra_scratch(as, rset_exclude(RSET_GPR, obj));
   emit_branch(as, LOONGI_BEQ, tmp, RID_ZERO, l_end);
-  emit_addk(as, ra_releasetmp(as, ASMREF_TMP1), RID_JGL, -32768, RSET_GPR);
+  emit_move(as, ra_releasetmp(as, ASMREF_TMP1), RID_JGL);
   emit_branch(as, LOONGI_BEQ, RID_TMP, RID_ZERO, l_end);
   emit_dju12(as, LOONGI_ANDI, tmp, tmp, LJ_GC_BLACK);
   emit_dju12(as, LOONGI_ANDI, RID_TMP, RID_TMP, LJ_GC_WHITES);
@@ -1768,7 +1765,7 @@ static void asm_gc_check(ASMState *as)
   asm_gencall(as, ci, args);
   tmp1 = ra_releasetmp(as, ASMREF_TMP1);
   tmp2 = ra_releasetmp(as, ASMREF_TMP2);
-  ra_allockreg(as, (int64_t)(J2G(as->J)), tmp1);
+  emit_move(as, tmp1, RID_JGL);
   emit_loadi(as, tmp2, as->gcsteps);
   /* Jump around GC step if GC total < GC threshold. */
   emit_branch(as, LOONGI_BLTU, RID_TMP, tmp2, l_end);

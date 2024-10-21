@@ -63,7 +63,7 @@
 |.define LREG,		r27	// Register holding lua_State (also in SAVE_L).
 |.define MULTRES,	r28	// Size of multi-result: (nresults+1)*8.
 |
-|.define JGL,		r22	// On-trace: global_State + 32768.
+|.define JGL,		r22	// On-trace: global_State.
 |
 |// Constants for type-comparisons, stores and conversions. C callee-save.
 |.define TISNIL,	r22
@@ -2188,7 +2188,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  addi.d TMP2, sp, 32*8+32*8		// Recompute original value of sp.
   |  st.d TMP2, 32*8+3*8(sp)		// Store sp in RID_SP
   |  li_vmstate EXIT
-  |  .ADD16I DISPATCH, JGL, -GG_DISP2G-32768
+  |  .ADD16I DISPATCH, JGL, -GG_DISP2G
   |  ld.w TMP1, 0(TMP2)			// Load exit number.
   |  st_vmstate
   |  .LDXD L, DISPATCH, DISPATCH_GL(cur_L)
@@ -2215,7 +2215,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.if JIT
   |  // CRET1 = MULTRES or negated error code, BASE, PC and JGL set.
   |  ld.d L, SAVE_L(sp)
-  |  .ADD16I DISPATCH, JGL, -GG_DISP2G-32768
+  |  .ADD16I DISPATCH, JGL, -GG_DISP2G
   |  st.d BASE, L->base
   |1:
   |  ld.d LFUNC:RB, FRAME_FUNC(BASE)
@@ -4347,7 +4347,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d TRACE:TMP1, 0(TMP0)
     |  .STXD BASE, DISPATCH, DISPATCH_GL(jit_base)	// store Current JIT code L->base
     |  ld.d TMP1, TRACE:TMP1->mcode
-    |  .ADD16I JGL, DISPATCH, GG_DISP2G+32768
+    |  .ADD16I JGL, DISPATCH, GG_DISP2G
     |  .STXD L, DISPATCH, DISPATCH_GL(tmpbuf.L)
     |  jirl r0, TMP1, 0
     |.endif

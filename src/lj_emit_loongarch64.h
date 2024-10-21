@@ -126,7 +126,7 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
 static void emit_lsptr(ASMState *as, LOONGIns loongi, Reg r, void *p, RegSet allow)
 {
   intptr_t jgl = (intptr_t)(J2G(as->J));
-  int32_t ofs = (intptr_t)(p)-jgl-32768;
+  int32_t ofs = (intptr_t)(p)-jgl;
   Reg base = RID_JGL;
   if (checki12(ofs)) {
     emit_djs12(as, loongi, r, base, ofs);
@@ -165,18 +165,13 @@ static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
 /* Get/set global_State fields. */
 static void emit_lsglptr2(ASMState *as, LOONGIns loongi, Reg r, int32_t ofs)
 {
-  Reg tmp = r;
-  if (loongi == LOONGI_STX_D) {
-    tmp = ra_scratch(as, RSET_GPR);
-  }
-  emit_djk(as, loongi, r, RID_JGL, tmp);
-  emit_loadi(as, tmp, (ofs-32768));
+  emit_djs12(as, loongi, r, RID_JGL, ofs);
 }
 
 #define emit_getgl(as, r, field) \
-  emit_lsglptr2(as, LOONGI_LDX_D, (r), (int32_t)offsetof(global_State, field))
+  emit_lsglptr2(as, LOONGI_LD_D, (r), (int32_t)offsetof(global_State, field))
 #define emit_setgl(as, r, field) \
-  emit_lsglptr2(as, LOONGI_STX_D, (r), (int32_t)offsetof(global_State, field))
+  emit_lsglptr2(as, LOONGI_ST_D, (r), (int32_t)offsetof(global_State, field))
 
 /* Trace number is determined from per-trace exit stubs. */
 #define emit_setvmstate(as, i)		UNUSED(i)
