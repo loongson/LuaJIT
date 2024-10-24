@@ -1931,19 +1931,18 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
   MCode *px = exitstub_trace_addr(T, exitno);
   MCode *cstart = NULL, *cstop = NULL;
   MCode *mcarea = lj_mcode_patch(J, p, 0);
-
   MCode exitload = LOONGI_ADDI_D | LOONGF_D(RID_TMP) | LOONGF_J(RID_ZERO) | LOONGF_I12(exitno);
+  uint32_t maskbcop = 0xfc000000u;
+  uint32_t maskfbcop = 0xfc000100u;
 
   for (; p < pe; p++) {
     if (*p == exitload) {
-    /* Look for exitstub branch, replace with branch to target. */
-    ptrdiff_t delta = target - p - 1;
-    MCode ins = p[1];
-      if (((ins ^ ((px-p-1)<<10)) & 0x3fffc00) == 0 &&
-          ((ins & 0xfc000000u) == LOONGI_BEQ ||
-           (ins & 0xfc000000u) == LOONGI_BNE ||
-           (ins & 0xfc000000u) == LOONGI_BLT ||
-           (ins & 0xfc000000u) == LOONGI_BGE )) {
+      /* Look for exitstub branch, replace with branch to target. */
+      ptrdiff_t delta = target - (p + 1);
+      MCode ins = p[1];
+      if (((ins ^ ((px-p-1)<<10)) & 0x3fffc00u) == 0 &&
+          ((ins & maskbcop) == LOONGI_BEQ || (ins & maskbcop) == LOONGI_BNE ||
+           (ins & maskbcop) == LOONGI_BLT || (ins & maskbcop) == LOONGI_BGE )) {
         /* Patch beq/bne/blt/bge, if within range. */
         if (p[-1] == LOONG_NOPATCH_GC_CHECK) {
 	  /* nothing */
@@ -1951,53 +1950,60 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
         } else if (LOONGF_S_OK(delta, 16)) {
           p[1] = (ins & 0xfc0003ffu) | LOONGF_I16(delta);
           *p = LOONGI_NOP;
-        } else if (LOONGF_S_OK(delta, 21)) {
+        } else if (LOONGF_S_OK(delta, 26)) {
 	  Reg rj = (ins>>5) & 0x1f;
 	  Reg rd = ins & 0x1f;
-	  switch (ins & 0xfc000000u) {
+	  switch (ins & maskbcop) {
           case LOONGI_BEQ:
-            *p = LOONGI_SUB_D | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-            p[1] = LOONGI_BEQZ | LOONGF_J(RID_TMP) | LOONGF_I21(delta);
+            *p = LOONGI_BNE | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
 	    break;
 	  case LOONGI_BNE:
-            *p = LOONGI_SUB_D | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-            p[1] = LOONGI_BNEZ | LOONGF_J(RID_TMP) | LOONGF_I21(delta);
+            *p = LOONGI_BEQ | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
 	    break;
 	  case LOONGI_BLT:
-            *p = LOONGI_SLT | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-            p[1] = LOONGI_BNEZ | LOONGF_J(RID_TMP) | LOONGF_I21(delta);
+            *p = LOONGI_BGE | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
 	    break;
 	  case LOONGI_BGE:
-            *p = LOONGI_SLT | LOONGF_D(RID_TMP) | LOONGF_J(rj) | LOONGF_K(rd);
-            p[1] = LOONGI_BEQZ | LOONGF_J(RID_TMP) | LOONGF_I21(delta);
+            *p = LOONGI_BLT | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
 	    break;
 	  }
+          p[1] = LOONGI_B | LOONGF_I26(delta);
 	} else {
-          lj_assertJ(LOONGF_S_OK(delta, 21), "branch target out of range");
+          lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
 	}
 	cstop = p + 2;
         if (!cstart) cstart = p;
       } else if (((ins ^ ((((px-p-1)&0xffff)<<10) + (((px-p-1)>>10)&0x1f))) & 0x3fffc1f) == 0 &&
-                 ((ins & 0xfc000000u) == LOONGI_BCEQZ ||
-                  (ins & 0xfc000100u) == LOONGI_BCNEZ)) {
+                 ((ins & maskfbcop) == LOONGI_BCEQZ || (ins & maskfbcop) == LOONGI_BCNEZ)) {
         if (LOONGF_S_OK(delta, 21)) {
           p[1] = (ins & 0xfc0003e0u) | LOONGF_I21(delta);
           *p = LOONGI_NOP;
-	  cstop = p + 2;
-          if (!cstart) cstart = p;
+        } else if (LOONGF_S_OK(delta, 26)) {
+	  Reg cj = (ins>>5) & 0x7;
+	  switch (ins & maskfbcop) {
+          case LOONGI_BCEQZ:
+            *p = LOONGI_BCNEZ | LOONGF_J(cj) |  LOONGF_I21(2);
+	    break;
+	  case LOONGI_BCNEZ:
+            *p = LOONGI_BCEQZ | LOONGF_J(cj) |  LOONGF_I21(2);
+	    break;
+	  }
+          p[1] = LOONGI_B | LOONGF_I26(delta);
         } else {
-	  lj_assertJ(LOONGF_S_OK(delta, 21), "branch target out of range");
+	  lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
 	}
+	cstop = p + 2;
+        if (!cstart) cstart = p;
       } else if (p+3 == pe) {
-         if (p[2] == LOONGI_NOP) {
-            ptrdiff_t delta = target - &p[2];
-            lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
-            p[2] = LOONGI_B | LOONGF_I26(delta);
-            *p = LOONGI_NOP;
-	    cstop = p + 3;
-            if (!cstart) cstart = p + 2;
-         }
-       }
+        if (p[2] == LOONGI_NOP) {
+          ptrdiff_t delta = target - &p[2];
+          lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
+          p[2] = LOONGI_B | LOONGF_I26(delta);
+          *p = LOONGI_NOP;
+	  cstop = p + 3;
+          if (!cstart) cstart = p + 2;
+        }
+      }
     }
   }
 
