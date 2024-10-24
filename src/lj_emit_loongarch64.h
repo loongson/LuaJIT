@@ -156,7 +156,7 @@ static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
     r64 = RID_TMP;
     emit_dj(as, LOONGI_MOVGR2FR_D, r, r64);
   }
-  if ((uint32_t)((intptr_t)k-(intptr_t)J2G(as->J)) < 65536)
+  if (checki12((intptr_t)k-(intptr_t)J2G(as->J)))
     emit_lsptr(as, LOONGI_LD_D, r64, (void *)k, 0);  /*To copy a doubleword from a GPR to an FPR*/
   else
     emit_loadu64(as, r64, *k);

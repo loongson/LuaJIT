@@ -146,7 +146,7 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow)
 	  int32_t ofs = asm_fuseabase(as, tab);
 	  IRRef refa = ofs ? tab : ir->op1;
 	  ofs += 8*IR(ir->op2)->i;
-	  if (checki16(ofs)) {
+	  if (checki12(ofs)) {
 	    *ofsp = ofs;
 	    return ra_alloc1(as, refa, allow);
 	  }
@@ -155,7 +155,7 @@ static Reg asm_fuseahuref(ASMState *as, IRRef ref, int32_t *ofsp, RegSet allow)
     } else if (ir->o == IR_HREFK) {
       if (mayfuse(as, ref)) {
 	int32_t ofs = (int32_t)(IR(ir->op2)->op2 * sizeof(Node));
-	if (checki16(ofs)) {
+	if (checki12(ofs)) {
 	  *ofsp = ofs;
 	  return ra_alloc1(as, ir->op1, allow);
 	}
@@ -849,7 +849,8 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   IRIns *irkey = IR(kslot->op1);
   int32_t ofs = (int32_t)(kslot->op2 * sizeof(Node));
   int32_t kofs = ofs + (int32_t)offsetof(Node, key);
-  Reg dest = (ra_used(ir)||ofs > 32736) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
+  int bigofs = !checki12(kofs);
+  Reg dest = (ra_used(ir) || bigofs) ? ra_dest(as, ir, RSET_GPR) : RID_NONE;
   Reg node = ra_alloc1(as, ir->op1, RSET_GPR);
   RegSet allow = rset_exclude(RSET_GPR, node);
   Reg idx = node;
@@ -857,7 +858,7 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   rset_clear(allow, key);
   int64_t k;
   lj_assertA(ofs % sizeof(Node) == 0, "unaligned HREFK slot");
-  if (ofs > 32736) {
+  if (bigofs) {
     idx = dest;
     rset_clear(allow, dest);
     kofs = (int32_t)offsetof(Node, key);
@@ -874,7 +875,7 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   }
   asm_guard(as, LOONGI_BNE, key, ra_allock(as, k, allow));
   emit_lso(as, LOONGI_LD_D, key, idx, kofs, allow);
-  if (ofs > 32736)
+  if (bigofs)
     emit_djk(as, LOONGI_ADD_D, dest, node, ra_allock(as, ofs, allow));
 }
 
