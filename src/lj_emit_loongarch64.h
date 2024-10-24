@@ -120,6 +120,31 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
   }
 }
 
+static void emit_lso(ASMState *as, LOONGIns loongi, Reg dest, Reg src, int64_t i, RegSet allow)
+{
+  if (checki12(i)) {
+    emit_djs12(as, loongi, dest, src, i);
+  } else {
+    LOONGIns loongk = LOONGI_NOP;
+    switch (loongi) {
+    case LOONGI_LD_D: loongk = LOONGI_LDX_D; break;
+    case LOONGI_LD_W: loongk = LOONGI_LDX_W; break;
+    case LOONGI_ST_D: loongk = LOONGI_STX_D; break;
+    case LOONGI_FLD_D: loongk = LOONGI_FLDX_D; break;
+    case LOONGI_FST_D: loongk = LOONGI_FSTX_D; break;
+    case LOONGI_LD_B: loongk = LOONGI_LDX_B; break;
+    case LOONGI_LD_BU: loongk = LOONGI_LDX_BU; break;
+    case LOONGI_LD_H: loongk = LOONGI_LDX_H; break;
+    case LOONGI_LD_HU: loongk = LOONGI_LDX_HU; break;
+    case LOONGI_FLD_S: loongk = LOONGI_FLDX_S; break;
+    default: break;
+    }
+    Reg ofs = ra_scratch(as, allow);
+    emit_djk(as, loongk, dest, src, ofs);
+    emit_loads32(as, ofs, i);
+  }
+}
+
 #define emit_loada(as, r, addr)         emit_loadu64(as, (r), u64ptr((addr)))
 
 /* Get/set from constant pointer. */
@@ -127,24 +152,7 @@ static void emit_lsptr(ASMState *as, LOONGIns loongi, Reg r, void *p, RegSet all
 {
   intptr_t jgl = (intptr_t)(J2G(as->J));
   int32_t ofs = (intptr_t)(p)-jgl;
-  Reg base = RID_JGL;
-  if (checki12(ofs)) {
-    emit_djs12(as, loongi, r, base, ofs);
-  } else {
-    /* ld.d->ldx.d, fld.d->fldx.d, ld.s->fldx.s */
-    Reg tmp = r;
-    if (loongi == LOONGI_LD_D) {
-      loongi = LOONGI_LDX_D;
-    } else if (loongi == LOONGI_FLD_D) {
-      tmp = ra_scratch(as, RSET_GPR);
-      loongi = LOONGI_FLDX_D;
-    } else if (loongi == LOONGI_FLD_S) {
-      tmp = ra_scratch(as, RSET_GPR);
-      loongi = LOONGI_FLDX_S;
-    }
-    emit_djk(as, loongi, r, base, tmp);
-    emit_loads32(as, tmp, ofs);
-  }
+  emit_lso(as, loongi, r, RID_JGL, ofs, allow);
 }
 
 /* Load 64 bit IR constant into register. */
@@ -253,70 +261,23 @@ static void emit_addk(ASMState *as, Reg dest, Reg src, int32_t i, RegSet allow)
   }
 }
 
-static void emit_lso(ASMState *as, LOONGIns loongi, Reg dest, Reg src, int64_t i, RegSet allow)
-{
-  if (checki12(i)) {
-    emit_djs12(as, loongi, dest, src, i);
-  } else {
-    LOONGIns loongk = LOONGI_NOP;
-    switch (loongi) {
-    case LOONGI_LD_D: loongk = LOONGI_LDX_D; break;
-    case LOONGI_LD_W: loongk = LOONGI_LDX_W; break;
-    case LOONGI_ST_D: loongk = LOONGI_STX_D; break;
-    case LOONGI_FLD_D: loongk = LOONGI_FLDX_D; break;
-    case LOONGI_FST_D: loongk = LOONGI_FSTX_D; break;
-    case LOONGI_LD_B: loongk = LOONGI_LDX_B; break;
-    case LOONGI_LD_BU: loongk = LOONGI_LDX_BU; break;
-    case LOONGI_LD_H: loongk = LOONGI_LDX_H; break;
-    case LOONGI_LD_HU: loongk = LOONGI_LDX_HU; break;
-    case LOONGI_FLD_S: loongk = LOONGI_FLDX_S; break;
-    default: break;
-    }
-    Reg ofs = ra_scratch(as, allow);
-    emit_djk(as, loongk, dest, src, ofs);
-    emit_loads32(as, ofs, i);
-  }
-}
-
 /* Generic load of register with base and (small) offset address. */
 static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
-  if (checki12(ofs)) {
-    if (r < RID_MAX_GPR) {
-      emit_djs12(as, irt_is64(ir->t) ? LOONGI_LD_D : LOONGI_LD_W, r, base, ofs);
-    } else {
-      emit_djs12(as, irt_isnum(ir->t) ? LOONGI_FLD_D : LOONGI_FLD_S, r, base, ofs);
-    }
+  if (r < RID_MAX_GPR) {
+    emit_djs12(as, irt_is64(ir->t) ? LOONGI_LD_D : LOONGI_LD_W, r, base, ofs);
   } else {
-    Reg tmp;
-    if (r < RID_MAX_GPR) {
-      tmp = r;
-      emit_djk(as, irt_is64(ir->t) ? LOONGI_LDX_D : LOONGI_LDX_W, r, base, tmp);
-    } else {
-      tmp = ra_scratch(as, RSET_GPR);
-      emit_djk(as, irt_isnum(ir->t) ? LOONGI_FLDX_D : LOONGI_FLDX_S, r, base, tmp);
-    }
-    emit_loads32(as, tmp, ofs);
+    emit_djs12(as, irt_isnum(ir->t) ? LOONGI_FLD_D : LOONGI_FLD_S, r, base, ofs);
   }
 }
 
 /* Generic store of register with base and (small) offset address. */
 static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
-  if (checki12(ofs)) {
-    if (r < RID_MAX_GPR) {
-      emit_djs12(as, irt_is64(ir->t) ? LOONGI_ST_D : LOONGI_ST_W, r, base, ofs);
-    } else {
-      emit_djs12(as, irt_isnum(ir->t) ? LOONGI_FST_D : LOONGI_FST_S, r, base, ofs);
-    }
+  if (r < RID_MAX_GPR) {
+    emit_djs12(as, irt_is64(ir->t) ? LOONGI_ST_D : LOONGI_ST_W, r, base, ofs);
   } else {
-    Reg tmp = ra_scratch(as, RSET_GPR);
-    if (r < RID_MAX_GPR) {
-      emit_djk(as, irt_is64(ir->t) ? LOONGI_STX_D : LOONGI_STX_W, r, base, tmp);
-    } else {
-      emit_djk(as, irt_isnum(ir->t) ? LOONGI_FSTX_D : LOONGI_FSTX_S, r, base, tmp);
-    }
-    emit_loads32(as, tmp, ofs);
+    emit_djs12(as, irt_isnum(ir->t) ? LOONGI_FST_D : LOONGI_FST_S, r, base, ofs);
   }
 }
 
