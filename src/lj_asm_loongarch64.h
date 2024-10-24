@@ -902,8 +902,8 @@ static void asm_uref(ASMState *as, IRIns *ir)
       emit_djs12(as, LOONGI_LD_BU, tmp, dest, offsetof(GCupval, closed));
     if (irref_isk(ir->op1)) {
       GCfunc *fn = ir_kfunc(IR(ir->op1));
-      GCobj *o = gcref(fn->l.uvptr[(ir->op2 >> 8)]);
-      emit_loada(as, dest, o); // TODO
+      uint64_t k = gcrefu(fn->l.uvptr[(ir->op2 >> 8)]);
+      emit_loadu64(as, dest, k);
     } else {
       Reg r = ra_alloc1(as, ir->op1, allow);
       rset_clear(allow, r);
