@@ -1669,28 +1669,26 @@ static void build_subroutines(BuildCtx *ctx)
   |  movgr2fr.w FTMP3, CARG1
   |  checknum CARG2, ->fff_fallback
   |  ffint.d.w FTMP3, FTMP3
-  |  fld.d FARG1, 0(TMP2)
-  |  fmov.d FTMP4, FARG1
+  |  fld.d FTMP4, 0(TMP2)
   |  b >6
   |
   |4:
   |  fld.d FTMP3, 0(BASE)
+  |  checknum CARG1, ->fff_fallback
   |5:  // Handle numbers.
   |  ld.d CARG2, 0(TMP2)
-  |  checknum CARG1, ->fff_fallback
   |  fld.d FTMP4, 0(TMP2)
   |  beq TMP2, TMP3, ->fff_resn
   |  checknum CARG2, >7
   |6:
-  |  fpins FRET1, FTMP3, FTMP4
-  |  fmov.d FTMP3, FRET1
+  |  fpins FTMP3, FTMP3, FTMP4
   |  addi.d TMP2, TMP2, 8
   |  b <5
   |
   |7:  // Convert integer to number and continue with number loop.
-  |  fld.s FARG1, 0(TMP2)
+  |  movgr2fr.w FTMP4, CARG2
   |  checkint CARG2, ->fff_fallback
-  |  ffint.d.w FARG1, FARG1
+  |  ffint.d.w FTMP4, FTMP4
   |  b <6
   |.endmacro
   |
