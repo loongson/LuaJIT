@@ -1869,14 +1869,8 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc_bit_op bxor, xor
   |
   |.ffunc_bit bswap
-  |  srli.d TMP0, CRET1, 8
-  |  srli.d TMP1, CRET1, 24
-  |  srli.d TMP2,TMP0, 8
-  |  andi TMP3, TMP2, 0xff
-  |  slli.d TMP3, TMP3, 8
-  |  bstrins.d TMP1, CRET1, 31, 24
-  |  bstrins.d TMP3, TMP0, 23, 16
-  |  or CRET1, TMP1, TMP3
+  |  revb.2w CRET1, CRET1
+  |  bstrpick.d CRET1, CRET1, 31, 0
   |  b ->fff_resi
   |
   |.ffunc_bit tobit
