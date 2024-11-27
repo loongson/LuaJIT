@@ -468,11 +468,9 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |6:
   |  ld.d TMP1, L->maxstack
-  |  slt TMP0, TMP2, RD
+  |  blt TMP2, RD, >7
   |  // More results wanted. Check stack size and fill up results with nil.
-  |  slt TMP1, BASE, TMP1
-  |  bnez TMP0, >7
-  |  beqz TMP1, >8
+  |  bge BASE, TMP1, >8
   |  st.d TISNIL, 0(BASE)
   |  addi.w RD, RD, 8
   |  addi.d BASE, BASE, 8
@@ -1401,10 +1399,9 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d PC, FRAME_PC(BASE)
   |  beqz CARG4, ->fff_fallback		// base == top && st == 0?
   |  add.d TMP2, CARG2, NARGS8:RC
-  |  sltu CARG4, TMP0, TMP2
-  |  st.d BASE, L->base
   |  st.d PC, SAVE_PC(sp)
-  |  bnez CARG4, ->fff_fallback		// Stack overflow?
+  |  st.d BASE, L->base
+  |  bltu TMP0, TMP2, ->fff_fallback		// Stack overflow?
   |1:
   |.if resume
   |  addi.d BASE, BASE, 8		// Keep resumed thread in stack for GC.
@@ -1559,9 +1556,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.w INS, -4(PC)
   |  decode_RB RB, INS
   |5:
-  |  sltu TMP2, RD, RB
+  |  bltu RD, RB, >6			// More results expected?
   |  decode_RA TMP0, INS
-  |  bnez TMP2, >6			// More results expected?
   |  // Adjust BASE. KBASE is assumed to be set for the calling frame.
   |  sub.d BASE, RA, TMP0
   |  ins_next
