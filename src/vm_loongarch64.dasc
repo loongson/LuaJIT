@@ -1328,10 +1328,9 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc pcall
   |  ld.d TMP1, L->maxstack
   |  add.d TMP2, BASE, NARGS8:RC
-  |  addi.d NARGS8:RC, NARGS8:RC, -8
   |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
-  |  sltu TMP1, TMP1, TMP2
-  |  bnez TMP1, ->fff_fallback
+  |  bltu TMP1, TMP2, ->fff_fallback
+  |  addi.d NARGS8:RC, NARGS8:RC, -8
   |  or TMP2, BASE, r0
   |  blt NARGS8:RC, r0, ->fff_fallback
   |  addi.d BASE, BASE, 16
@@ -1352,13 +1351,12 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc xpcall
   |  ld.d TMP1, L->maxstack
   |  add.d TMP2, BASE, NARGS8:RC
-  |  addi.d NARGS8:TMP0, NARGS8:RC, -16
   |  ld.d CARG1, 0(BASE)
+  |  bltu TMP1, TMP2, ->fff_fallback
+  |  addi.d NARGS8:TMP0, NARGS8:RC, -16
   |  ld.d CARG2, 8(BASE)
-  |  sltu TMP1, TMP1, TMP2
-  |  bnez TMP1, ->fff_fallback
-  |  .LDXBU TMP1, DISPATCH, DISPATCH_GL(hookmask)
   |  blt NARGS8:TMP0, r0, ->fff_fallback
+  |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
   |  gettp TMP2, CARG2
   |  addi.d TMP2, TMP2, -LJ_TFUNC
   |  bnez TMP2, ->fff_fallback		// Traceback must be a function.
