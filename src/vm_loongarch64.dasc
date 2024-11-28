@@ -2298,20 +2298,18 @@ static void build_subroutines(BuildCtx *ctx)
   |.if "func" == "trunc"
   |  slli.d TMP0, TMP0, 32
   |  movgr2fr.d FARG5, TMP0
-  |  fcmp.clt.d FCC0, FTMP4, FRET1	// |x| < result?
+  |  fcmp.clt.d FCC0, FTMP4, FTMP3	// |x| < result?
   |  fsub.d FTMP4, FTMP3, FARG5
   |  fsel FTMP1, FTMP3, FTMP4, FCC0
-  |  movgr2fr.d FTMP3, TMP1
+  |  movgr2cf FCC0, TMP1
   |  fneg.d FTMP4, FTMP1
-  |  movfr2cf FCC0, FTMP3
-  |  fsel FTMP3, FTMP1, FTMP4, FCC0
+  |  fsel FRET1, FTMP1, FTMP4, FCC0
   |  jirl r0, ra, 0
   |.else
   |  fneg.d FTMP4, FTMP3
   |  slli.d TMP0, TMP0, 32
+  |  movgr2cf FCC0, TMP1
   |  movgr2fr.d FARG5, TMP0
-  |  movgr2fr.d FTMP1, TMP1
-  |  movfr2cf FCC0, FTMP1
   |  fsel FTMP1, FTMP3, FTMP4, FCC0
   |.if "func" == "ceil"
   |  fcmp.clt.d FCC0, FTMP1, FARG1	// x > result?
@@ -2319,12 +2317,10 @@ static void build_subroutines(BuildCtx *ctx)
   |  fcmp.clt.d FCC0, FARG1, FTMP1	// x < result?
   |.endif
   |  fsub.d FTMP4, FTMP1, FARG5		// If yes, subtract +-1.
-  |  fsel FTMP3, FTMP1, FTMP4, FCC0
-  |  fmov.d FARG1, FTMP3
+  |  fsel FRET1, FTMP1, FTMP4, FCC0
   |  jirl r0, ra, 0
   |.endif
   |1:
-  |  fmov.d FTMP3, FARG1
   |  jirl r0, ra, 0
   |.endmacro
   |
