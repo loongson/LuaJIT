@@ -2360,10 +2360,9 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d NEXT_TMP0, NEXT_TAB->array
   |  addi.d NEXT_NIL, r0, LJ_TNIL
   |1:  // Traverse array part.
-  |  sltu TMP3, NEXT_IDX, NEXT_ASIZE
+  |  bgeu NEXT_IDX, NEXT_ASIZE, >5
   |  slli.w NEXT_TMP1, NEXT_IDX, 3
   |  add.d NEXT_TMP1, NEXT_TMP0, NEXT_TMP1
-  |  beqz TMP3, >5
   |  addi.d TMP3, r0, LJ_TISNUM
   |  ld.d NEXT_TMP2, 0(NEXT_TMP1)
   |  slli.d TMP3, TMP3, 47
@@ -2378,16 +2377,14 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |5:  // Traverse hash part.
   |  sub.w NEXT_RES_IDX, NEXT_IDX, NEXT_ASIZE
-  |  or r18, CARG1, r0
-  |  ld.d NODE:NEXT_RES_VK, TAB:r18->node
+  |  ld.d NODE:NEXT_RES_VK, NEXT_TAB->node
+  |  ld.w NEXT_TMP0, NEXT_TAB->hmask
   |  slli.w NEXT_TMP2, NEXT_RES_IDX, 5
-  |  ld.w NEXT_TMP0, TAB:r18->hmask
   |  slli.w TMP3, NEXT_RES_IDX, 3
   |  sub.w TMP3, NEXT_TMP2, TMP3
   |  add.d NODE:NEXT_RES_VK, NODE:NEXT_RES_VK, TMP3
   |6:
-  |  sltu TMP3, NEXT_TMP0, NEXT_RES_IDX
-  |  bnez TMP3, >8
+  |  bltu NEXT_TMP0, NEXT_RES_IDX, >8
   |  ld.d NEXT_TMP2, NODE:NEXT_RES_VK->val
   |  addi.w NEXT_RES_IDX, NEXT_RES_IDX, 1
   |  bne NEXT_TMP2, NEXT_NIL, >9
