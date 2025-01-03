@@ -1,6 +1,7 @@
 /*
 ** Definitions for LoongArch CPUs.
 ** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2022 Loongson Technology. All rights reserved.
 */
 
 #ifndef _LJ_TARGET_LOONGARCH_H
@@ -69,7 +70,7 @@ enum {
 #define RSET_INIT	RSET_ALL
 
 /* scratch register. */
-#define RSET_SCRATCH_GPR	RSET_RANGE(RID_R4, RID_R19+1)
+#define RSET_SCRATCH_GPR	(RSET_RANGE(RID_R4, RID_R19+1))
 #define RSET_SCRATCH_FPR	RSET_RANGE(RID_F0, RID_F23+1)
 #define RSET_SCRATCH		(RSET_SCRATCH_GPR|RSET_SCRATCH_FPR)
 #define REGARG_FIRSTGPR		RID_R4
@@ -187,6 +188,8 @@ typedef enum LOONGIns {
   LOONGI_BGE = 0x64000000,
   LOONGI_BGEU = 0x6c000000,
   LOONGI_BLTU = 0x68000000,
+  LOONGI_BEQZ = 0x40000000,
+  LOONGI_BNEZ = 0x44000000,
   LOONGI_BCEQZ = 0x48000000,
   LOONGI_BCNEZ = 0x48000100,
 

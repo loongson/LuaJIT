@@ -2,6 +2,7 @@
 -- DynASM LoongArch module.
 --
 -- Copyright (C) 2005-2022 Mike Pall. All rights reserved.
+-- Copyright (C) 2022 Loongson Technology. All rights reserved.
 -- See dynasm.lua for full copyright notice.
 ------------------------------------------------------------------------------
 
@@ -658,12 +659,12 @@ local function parse_imm21or26(imm, i)
       if s == 0 then
         return shl(sub(m, 1, 16), 10) + shl(sub(m, 17, i), 0)
       elseif s == -1 then
-        return shl(sub(m, 1, 16), 10) + shl(sub(m, 17, i), 0)
+        return shl(sub(m, 1, 16), 10) + shl(sub(m, 17, i), 0)	--TODO
       end
     end
     werror("out of range immediate2 `"..imm.."'")
   else
-    waction("IMM2", 0, imm)
+    waction("IMM2", 0, imm)	--TODO
     return 0
   end
 end

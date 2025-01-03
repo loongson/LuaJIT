@@ -1,7 +1,8 @@
 ----------------------------------------------------------------------------
--- LuaJIT LoongArch64 disassembler module.
+-- LuaJIT LoongArch disassembler module.
 --
 -- Copyright (C) 2005-2022 Mike Pall. All rights reserved.
+-- Copyright (C) 2022 Loongson Technology. All rights reserved.
 -- Released under the MIT/X license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 -- This is a helper module used by the LuaJIT machine code dumper module.
@@ -353,19 +354,19 @@ local map_ldst1_10 = {
   shift = 22, mask = 15,
   [0] = "ld.bDJX",
   [1] = "ld.hDJX",
-  [2] = "ld.wDo",
-  [3] = "ld.dDo",
-  [4] = "st.bDo",
-  [5] = "st.hDo",
-  [6] = "st.wDo",
-  [7] = "st.dDo",
-  [8] = "ld.buDo",
-  [9] = "ld.huDo",
+  [2] = "ld.wDJX",
+  [3] = "ld.dDJX",
+  [4] = "st.bDJX",
+  [5] = "st.hDJX",
+  [6] = "st.wDJX",
+  [7] = "st.dDJX",
+  [8] = "ld.buDJX",
+  [9] = "ld.huDJX",
   [10] = "ld.wuDJX",
-  [12] = "fld.sFo",
-  [13] = "fst.sFo",
-  [14] = "fld.dFo",
-  [15] = "fst.dFo",
+  [12] = "fld.sFJX",
+  [13] = "fst.sFJX",
+  [14] = "fld.dFJX",
+  [15] = "fst.dFJX",
 }
 
 local map_fcmp0 = {

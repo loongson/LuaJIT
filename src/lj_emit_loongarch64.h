@@ -1,6 +1,7 @@
 /*
 ** LoongArch instruction emitter.
 ** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2022 Loongson Technology. All rights reserved.
 */
 
 static intptr_t get_k64val(ASMState *as, IRRef ref)
@@ -118,7 +119,7 @@ static void emit_lsptr(ASMState *as, LOONGIns loongi, Reg r, void *p, RegSet all
   intptr_t jgl = (intptr_t)(J2G(as->J));
   intptr_t i = (intptr_t)(p);
   Reg base;
-  if ((uint32_t)(i-jgl) < 65536) {
+  if ((uint32_t)(i-jgl) < 65536) {	//TODO
     i = i-jgl-32768;
     base = RID_JGL;
   } else {
@@ -277,8 +278,10 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
   if (r < RID_MAX_GPR) {
     emit_djk(as, irt_is64(ir->t) ? LOONGI_LDX_D : LOONGI_LDX_W, r, base, RID_R20);
+    //emit_dji(as, irt_is64(ir->t) ? LOONGI_LD_D : LOONGI_LD_W, r, base, ofs&0xfff);
   } else {
     emit_djk(as, irt_isnum(ir->t) ? LOONGI_FLDX_D : LOONGI_FLDX_S, r, base, RID_R20);
+    //emit_dji(as, irt_isnum(ir->t) ? LOONGI_FLD_D : LOONGI_FLD_S, r, base, ofs&0xfff);
   }
   emit_d16i(as, RID_R20, ofs);
 }
@@ -288,8 +291,10 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
   if (r < RID_MAX_GPR) {
     emit_djk(as, irt_is64(ir->t) ? LOONGI_STX_D : LOONGI_STX_W, r, base, RID_R20);
+    //emit_dji(as, irt_is64(ir->t) ? LOONGI_ST_D : LOONGI_ST_W, r, base, ofs&0xfff);
   } else {
     emit_djk(as, irt_isnum(ir->t) ? LOONGI_FSTX_D : LOONGI_FSTX_S, (r&31), base, RID_R20);
+    //emit_dji(as, irt_isnum(ir->t) ? LOONGI_FST_D : LOONGI_FST_S, r, base, ofs&0xfff);
   }
   emit_d16i(as, RID_R20, ofs);
 }
