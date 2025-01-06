@@ -1,7 +1,7 @@
 /*
 ** Definitions for LoongArch CPUs.
-** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
-** Copyright (C) 2022 Loongson Technology. All rights reserved.
+** Copyright (C) 2005-2025 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2025 Loongson Technology. All rights reserved.
 */
 
 #ifndef _LJ_TARGET_LOONGARCH_H

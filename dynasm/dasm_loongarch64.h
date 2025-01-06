@@ -1,7 +1,7 @@
 /*
 ** DynASM LoongArch encoding engine.
-** Copyright (C) 2005-2022 Mike Pall. All rights reserved.
-** Copyright (C) 2022 Loongson Technology. All rights reserved.
+** Copyright (C) 2005-2025 Mike Pall. All rights reserved.
+** Copyright (C) 2025 Loongson Technology. All rights reserved.
 ** Released under the MIT license. See dynasm.lua for full copyright notice.
 */
 

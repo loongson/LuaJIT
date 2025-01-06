@@ -1,8 +1,8 @@
 ----------------------------------------------------------------------------
 -- LuaJIT LoongArch disassembler module.
 --
--- Copyright (C) 2005-2022 Mike Pall. All rights reserved.
--- Copyright (C) 2022 Loongson Technology. All rights reserved.
+-- Copyright (C) 2005-2025 Mike Pall. All rights reserved.
+-- Copyright (C) 2025 Loongson Technology. All rights reserved.
 -- Released under the MIT/X license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 -- This is a helper module used by the LuaJIT machine code dumper module.

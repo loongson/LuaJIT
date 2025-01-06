@@ -1,7 +1,7 @@
 |// Low-level VM code for LoongArch CPUs.
 |// Bytecode interpreter, fast functions and helper functions.
-|// Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
-|// Copyright (C) 2022 Loongson Technology. All rights reserved.
+|// Copyright (C) 2005-2025 Mike Pall. See Copyright Notice in luajit.h
+|// Copyright (C) 2025 Loongson Technology. All rights reserved.
 |
 |.arch loongarch64
 |.section code_op, code_sub

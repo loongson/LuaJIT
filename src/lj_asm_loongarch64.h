@@ -1,7 +1,7 @@
 /*
 ** LoongArch IR assembler (SSA IR -> machine code).
-** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
-** Copyright (C) 2022 Loongson Technology. All rights reserved.
+** Copyright (C) 2005-2025 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2025 Loongson Technology. All rights reserved.
 */
 
 /* -- Register allocator extensions --------------------------------------- */
