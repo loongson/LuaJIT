@@ -565,8 +565,8 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	LOONGIns loongi = irt_is64(ir->t) ?
 	  (st == IRT_NUM ? LOONGI_FTINTRZ_L_D : LOONGI_FTINTRZ_L_S) :
 	  (st == IRT_NUM ? LOONGI_FTINTRZ_W_D : LOONGI_FTINTRZ_W_S);
-	emit_dj(as, irt_is64(ir->t) ? LOONGI_MOVFR2GR_D : LOONGI_MOVFR2GR_S, dest, left);
-	emit_dj(as, loongi, left, left);
+	emit_dj(as, irt_is64(ir->t) ? LOONGI_MOVFR2GR_D : LOONGI_MOVFR2GR_S, dest, tmp);
+	emit_dj(as, loongi, tmp, left);
       }
     }
   } else {
