@@ -1328,10 +1328,11 @@ static void build_subroutines(BuildCtx *ctx)
   |  add.d TMP2, BASE, NARGS8:RC
   |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
   |  bltu TMP1, TMP2, ->fff_fallback
-  |  addi.d NARGS8:RC, NARGS8:RC, -8
+  |  addi.d NARGS8:TMP0, NARGS8:RC, -8
   |  or TMP2, BASE, r0
-  |  blt NARGS8:RC, r0, ->fff_fallback
+  |  blt NARGS8:TMP0, r0, ->fff_fallback
   |  addi.d BASE, BASE, 16
+  |  or NARGS8:RC, NARGS8:TMP0, r0
   |  // Remember active hook before pcall.
   |  srli.w TMP3, TMP3, HOOK_ACTIVE_SHIFT
   |  andi TMP3, TMP3, 1
