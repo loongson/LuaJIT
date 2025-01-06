@@ -19,6 +19,8 @@
   _(F8) _(F9) _(F10) _(F11) _(F12) _(F13) _(F14) _(F15) \
   _(F16) _(F17) _(F18) _(F19) _(F20) _(F21) _(F22) _(F23) \
   _(F24) _(F25) _(F26) _(F27) _(F28) _(F29) _(F30) _(F31)
+#define CFRDEF(_) \
+  _(FCC0) _(FCC1) _(FCC2) _(FCC3) _(FCC4) _(FCC5) _(FCC6) _(FCC7)
 #define VRIDDEF(_)
 
 #define RIDENUM(name)	RID_##name,
@@ -26,6 +28,7 @@
 enum {
   GPRDEF(RIDENUM)		/* General-purpose registers (GPRs). */
   FPRDEF(RIDENUM)		/* Floating-point registers (FPRs). */
+  CFRDEF(RIDENUM)		/* Condition-flags registers (CFRs). */
   RID_MAX,
   RID_ZERO = RID_R0,
   RID_TMP = RID_RA,

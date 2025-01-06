@@ -545,9 +545,9 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	  emit_djk(as, LOONGI_FADD_D, tmp, left, tmp);
 	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_M2P64],
 		     rset_exclude(RSET_GPR, dest));
-	  emit_branch21(as, LOONGI_BCNEZ, 0, l_end);
+	  emit_branch21(as, LOONGI_BCNEZ, (RID_FCC0 & 0x3f), l_end);
 	  emit_dj(as, LOONGI_FTINTRZ_L_D, tmp, left);
-	  emit_djk(as, LOONGI_FCMP_CLT_D, 0, left, tmp);
+	  emit_djk(as, LOONGI_FCMP_CLT_D, (RID_FCC0 & 0x3f), left, tmp);
 	  emit_lsptr(as, LOONGI_FLD_D, (tmp & 0x1f), (void *)&as->J->k64[LJ_K64_2P63],
 		     rset_exclude(RSET_GPR, dest));
 	} else {
@@ -555,9 +555,9 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	  emit_djk(as, LOONGI_FADD_S, tmp, left, tmp);
 	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f), (void *)&as->J->k32[LJ_K32_M2P64],
 		     rset_exclude(RSET_GPR, dest));
-	  emit_branch21(as, LOONGI_BCNEZ, 0, l_end);
+	  emit_branch21(as, LOONGI_BCNEZ, (RID_FCC0 & 0x3f), l_end);
 	  emit_dj(as, LOONGI_FTINTRZ_L_S, tmp, left);
-	  emit_djk(as, LOONGI_FCMP_CLT_S, 0, left, tmp);
+	  emit_djk(as, LOONGI_FCMP_CLT_S, (RID_FCC0 & 0x3f), left, tmp);
 	  emit_lsptr(as, LOONGI_FLD_S, (tmp & 0x1f), (void *)&as->J->k32[LJ_K32_2P63],
 		     rset_exclude(RSET_GPR, dest));
 	}
