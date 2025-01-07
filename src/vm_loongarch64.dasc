@@ -2378,8 +2378,8 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |5:  // Traverse hash part.
   |  sub.w NEXT_RES_IDX, NEXT_IDX, NEXT_ASIZE
-  |  ld.d NODE:NEXT_RES_VK, NEXT_TAB->node
   |  ld.w NEXT_TMP0, NEXT_TAB->hmask
+  |  ld.d NODE:NEXT_RES_VK, NEXT_TAB->node	// Both NEXT_TAB and NEXT_RES_VK are CARG1.
   |  slli.w NEXT_TMP2, NEXT_RES_IDX, 5
   |  slli.w TMP3, NEXT_RES_IDX, 3
   |  sub.w TMP3, NEXT_TMP2, TMP3
