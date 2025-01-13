@@ -2841,14 +2841,13 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  // RA = dst*8 or unused, RD = src*8, JMP with RD = target
     |  add.d RD, BASE, RD
     |  ld.hu TMP2, OFS_RD(PC)
-    |  ld.d TMP0, 0(RD)
+    |  ld.d CRET1, 0(RD)
     |  addi.d PC, PC, 4
-    |  gettp TMP0, TMP0
+    |  gettp TMP0, CRET1
     |  add.d RA, BASE, RA
     |  sltui TMP0, TMP0, LJ_TISTRUECOND	// TMP0=1 true; TMP0=0 false
     |  decode_BC4b TMP2
     |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
-    |  ld.d CRET1, 0(RD)
     |  add.w TMP2, TMP2, TMP3		// (jump-0x8000)<<2
     if (op == BC_IST || op == BC_ISTC) {
       |  beqz TMP0, >1
