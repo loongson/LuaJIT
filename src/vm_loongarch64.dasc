@@ -2976,28 +2976,25 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  fsub.d a, b, a		// b - floor(b/c)*c
     |.endmacro
     |
-    |.macro ins_arithpre
+    |.macro ins_arithhead
     ||vk = ((int)op - BC_ADDVN) / (BC_ADDNV-BC_ADDVN);
     |  // RA = dst*8, RB = src1*8, RC = src2*8 | num_const*8
-    ||if (vk == 1) {
-    |   // RA = dst*8, RB = num_const*8, RC = src1*8
-    |   decode_RB RC, INS
-    |   decode_RDtoRC8 RB, RD
-    ||} else {
-    |   // RA = dst*8, RB = src1*8, RC = num_const*8
-    |   decode_RB RB, INS
-    |   decode_RDtoRC8 RC, RD
-    ||}
     ||switch (vk) {
     ||case 0:			// suffix is VN
+    |   decode_RB RB, INS
+    |   decode_RDtoRC8 RC, RD
     |   add.d RB, BASE, RB
     |   add.d RC, KBASE, RC
     ||  break;
     ||case 1:			// suffix is NV
+    |   decode_RB RC, INS
+    |   decode_RDtoRC8 RB, RD
     |   add.d RC, BASE, RC
     |   add.d RB, KBASE, RB
     ||  break;
     ||default:			// CAT or suffix is VV
+    |   decode_RB RB, INS
+    |   decode_RDtoRC8 RC, RD
     |   add.d RB, BASE, RB
     |   add.d RC, BASE, RC
     ||  break;
@@ -3018,7 +3015,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_next2
     |.endmacro
     |
-    |.macro ins_arithead, itype1, itype2, tval1, tval2
+    |.macro ins_arithload, itype1, itype2, tval1, tval2
     |  ld.d tval1, 0(RB)
     |  ld.d tval2, 0(RC)
     |  // Check for two integers.
@@ -3027,32 +3024,33 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |.endmacro
     |
     |.macro ins_arithdn, intins, fpins
-    |  ins_arithpre
-    |  ins_arithead TMP0, TMP1, CARG1, CARG2
+    |  ins_arithhead
+    |  ins_arithload TMP0, TMP1, CARG1, CARG2
     |  bne TMP0, TISNUM, >1
     |  bne TMP1, TISNUM, >1
     |  slli.w CARG3, CARG1, 0
-    |  slli.w CARG4, CARG2, 0
-    |.if "intins" == "add.w"
-    |  intins CRET1, CARG3, CARG4
-    |  xor TMP1, CRET1, CARG3		// ((y^a) & (y^b)) < 0: overflow.
-    |  xor TMP2, CRET1, CARG4
-    |  and TMP1, TMP1, TMP2
+    |  slli.w CARG2, CARG2, 0
     |  add.d RA, BASE, RA
+    |.if "intins" == "add.w"
+    |  intins CRET1, CARG3, CARG2
+    |  xor TMP1, CRET1, CARG3		// ((y^a) & (y^b)) < 0: overflow.
+    |  xor TMP2, CRET1, CARG2
+    |  and TMP1, TMP1, TMP2
     |  blt TMP1, r0, ->vmeta_arith
     |.elif "intins" == "sub.w"
-    |  intins CRET1, CARG3, CARG4
+    |  intins CRET1, CARG3, CARG2
     |  xor TMP1, CRET1, CARG3		// ((y^a) & (a^b)) < 0: overflow.
-    |  xor TMP2, CARG3, CARG4
+    |  xor TMP2, CARG3, CARG2
     |  and TMP1, TMP1, TMP2
-    |  add.d RA, BASE, RA
     |  blt TMP1, r0, ->vmeta_arith
     |.elif "intins" == "mulw.d.w"
-    |  mul.w CRET1, CARG3, CARG4
-    |  mulh.w TMP2, CARG3, CARG4
-    |  srai.w TMP1, CRET1, 31		// 63-32bit not all 0 or 1: overflow.
-    |  add.d RA, BASE, RA
-    |  bne TMP1, TMP2, ->vmeta_arith
+    |  intins CRET1, CARG3, CARG2
+    |  slli.w TMP1, CRET1, 0		// 63-32bit not all 0 or 1: overflow.
+    |  bne TMP1, CRET1, ->vmeta_arith
+    |.elif "intins" == "mod"
+    |  beqz CARG2, ->vmeta_arith
+    |  or CARG1, CARG3, r0
+    |  bl extern lj_vm_modi
     |.endif
     |  bstrpick.d CRET1, CRET1, 31, 0
     |  settp CRET1, TISNUM
@@ -3063,26 +3061,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |.endmacro
     |
     |.macro ins_arithdiv, fpins
-    |  ins_arithpre
-    |  ins_arithead TMP0, TMP1, CARG1, CARG2
-    |  ins_arithfp, fpins, TMP0, TMP1
-    |.endmacro
-    |
-    |.macro ins_arithmod, fpins
-    |  ins_arithpre
-    |  ins_arithead TMP0, TMP1, CARG1, CARG2
-    |  bne TMP0, TISNUM, >1
-    |  bne TMP1, TISNUM, >1
-    |  slli.w CARG1, CARG1, 0
-    |  slli.w CARG2, CARG2, 0
-    |  add.d RA, BASE, RA
-    |  beqz CARG2, ->vmeta_arith
-    |  bl extern lj_vm_modi
-    |  bstrpick.d CRET1, CRET1, 31, 0
-    |  settp CRET1, TISNUM
-    |  st.d CRET1, 0(RA)
-    |  ins_next
-    |1:  // Check for two numbers.
+    |  ins_arithhead
+    |  ins_arithload TMP0, TMP1, CARG1, CARG2
     |  ins_arithfp, fpins, TMP0, TMP1
     |.endmacro
 
@@ -3099,14 +3079,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_arithdiv fdiv.d
     break;
   case BC_MODVN: case BC_MODNV: case BC_MODVV:
-    |  ins_arithmod fpmod
+    |  ins_arithdn mod, fpmod
     break;
   case BC_POW:
-    |  ins_arithpre
-    |  ld.d CARG1, 0(RB)
-    |  ld.d CARG2, 0(RC)
-    |  gettp TMP0, CARG1
-    |  gettp TMP1, CARG2
+    |  ins_arithhead
+    |  ins_arithload TMP0, TMP1, CARG1, CARG2
     |  sltui TMP0, TMP0, LJ_TISNUM
     |  sltui TMP1, TMP1, LJ_TISNUM
     |  and TMP0, TMP0, TMP1
