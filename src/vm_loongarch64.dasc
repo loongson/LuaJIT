@@ -3158,8 +3158,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d RD, KBASE, RD
     |  add.d RA, BASE, RA
     |  ld.d TMP0, 0(RD)
+    |  ins_next1
     |  st.d TMP0, 0(RA)
-    |  ins_next
+    |  ins_next2
     break;
   case BC_KPRI:
     |  // RA = dst*8, RD = primitive_type*8 (~)
