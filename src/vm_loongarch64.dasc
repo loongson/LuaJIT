@@ -3253,11 +3253,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_next
     |
     |2:  // Check if string is white and ensure upvalue is closed.
-    |  beqz TMP2, <1
     |  andi TMP0, TMP3, LJ_GC_WHITES	// iswhite(str)
+    |  beqz TMP2, <1
+    |  .ADD16I CARG1, DISPATCH, GG_DISP2G
     |  beqz TMP0, <1
     |  // Crossed a write barrier. Move the barrier forward.
-    |  .ADD16I CARG1, DISPATCH, GG_DISP2G
     |  bl extern lj_gc_barrieruv	// (global_State *g, TValue *tv)
     |  b <1
     break;
@@ -3270,8 +3270,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d UPVAL:TMP0, LFUNC:TMP0->uvptr
     |  ld.d TMP1, 0(RD)
     |  ld.d TMP0, UPVAL:TMP0->v
+    |  ins_next1
     |  st.d TMP1, 0(TMP0)
-    |  ins_next
+    |  ins_next2
     break;
   case BC_USETP:
     |  // RA = uvnum*8, RD = primitive_type*8 (~)
@@ -3282,8 +3283,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  nor TMP2, TMP2, r0
     |  ld.d UPVAL:TMP0, LFUNC:TMP0->uvptr
     |  ld.d TMP1, UPVAL:TMP0->v
+    |  ins_next1
     |  st.d TMP2, 0(TMP1)
-    |  ins_next
+    |  ins_next2
     break;
 
   case BC_UCLO:
@@ -3328,9 +3330,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  .LDXD TMP0, DISPATCH, DISPATCH_GL(gc.total)
     |  .LDXD TMP1, DISPATCH, DISPATCH_GL(gc.threshold)
     |  st.d BASE, L->base
-    |  sltu TMP2, TMP0, TMP1
     |  st.d PC, SAVE_PC(sp)
-    |  beqz TMP2, >5
+    |  bgeu TMP0, TMP1, >5
     |1:
     if (op == BC_TNEW) {
       |  srli.w CARG2, RD, 3
@@ -3399,9 +3400,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  bne TMP3, TISNUM, >5		// Integer key?
     |  slli.w TMP2, TMP2, 0
     |  ld.d TMP1, TAB:RB->array
-    |  sltu TMP3, TMP2, TMP0		//array part (keys = [0, asize-1])
+    |  bgeu TMP2, TMP0, ->vmeta_tgetv	// Integer key and in array part?
     |  slli.w TMP2, TMP2, 3
-    |  beqz TMP3, ->vmeta_tgetv		// Integer key and in array part?
     |  add.d TMP2, TMP1, TMP2
     |  ld.d CRET1, 0(TMP2)
     |  beq CRET1, TISNIL, >2
@@ -3480,9 +3480,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  checktab TAB:RB, ->vmeta_tgetb
     |  ld.w TMP1, TAB:RB->asize
     |  ld.d TMP2, TAB:RB->array
-    |  sltu TMP1, TMP0, TMP1
     |  add.d RC, TMP2, RC
-    |  beqz TMP1, ->vmeta_tgetb
+    |  bgeu TMP0, TMP1, ->vmeta_tgetb
     |  ld.d CRET1, 0(RC)
     |  beq CRET1, TISNIL, >5
     |1:
@@ -3509,10 +3508,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  cleartp TAB:CARG1
     |  ld.w TMP0, TAB:CARG1->asize
     |  ld.d TMP1, TAB:CARG1->array
-    |  sltu TMP0, CARG2, TMP0
     |  slli.w TMP2, CARG2, 3
     |  add.d TMP3, TMP1, TMP2
-    |  beqz TMP0, ->vmeta_tgetr		// In array part?
+    |  bgeu CARG2, TMP0, ->vmeta_tgetr	// In array part?
     |  ld.d TMP1, 0(TMP3)
     |->BC_TGETR_Z:
     |  ins_next1
@@ -3534,9 +3532,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  checkint TMP2, >5
     |  ld.w TMP0, TAB:RB->asize
     |  ld.d TMP1, TAB:RB->array
-    |  sltu TMP0, RC, TMP0
     |  slli.w TMP2, RC, 3
-    |  beqz TMP0, ->vmeta_tsetv		// Integer key and in array part?
+    |  bgeu RC, TMP0, ->vmeta_tsetv	// Integer key and in array part?
     |  add.d TMP1, TMP1, TMP2
     |  ld.bu TMP3, TAB:RB->marked
     |  ld.d TMP0, 0(TMP1)
@@ -3620,18 +3617,18 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |  // But check for __newindex first.
     |  ld.d TAB:TMP2, TAB:RB->metatable
-    |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
     |  beqz TAB:TMP2, >6		// No metatable: continue.
     |  ld.bu TMP0, TAB:TMP2->nomm
     |  andi TMP0, TMP0, 1<<MM_newindex
     |  beqz TMP0, ->vmeta_tsets		// 'no __newindex' flag NOT set: check.
     |6:
-    |  st.d RC, 0(CARG3)
+    |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
     |  st.d BASE, L->base
+    |  st.d RC, 0(CARG3)
     |  or CARG2, TAB:RB, r0
     |  st.d PC, SAVE_PC(sp)
     |  or CARG1, L, r0
-    |  bl extern lj_tab_newkey		// (lua_State *L, GCtab *t, TValue *k
+    |  bl extern lj_tab_newkey		// (lua_State *L, GCtab *t, TValue *k)
     |  // Returns TValue *.
     |  ld.d BASE, L->base
     |  fst.d FTMP0, 0(CRET1)
@@ -3651,9 +3648,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  checktab RB, ->vmeta_tsetb
     |  ld.w TMP1, TAB:RB->asize
     |  ld.d TMP2, TAB:RB->array
-    |  sltu TMP1, TMP0, TMP1
     |  add.d RC, TMP2, RC
-    |  beqz TMP1, ->vmeta_tsetb
+    |  bgeu TMP0, TMP1, ->vmeta_tsetb
     |  ld.d TMP1, 0(RC)
     |  ld.bu TMP3, TAB:RB->marked
     |  beq TMP1, TISNIL, >5
@@ -3692,10 +3688,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d RA, BASE, RA
     |  bnez TMP2, >7
     |2:
-    |  sltu TMP0, CARG3, TMP0
     |  slli.w TMP2, CARG3, 3
     |  add.d CRET1, TMP1, TMP2
-    |  beqz TMP0, ->vmeta_tsetr		// In array part?
+    |  bgeu CARG3, TMP0, ->vmeta_tsetr	// In array part?
     |->BC_TSETR_Z:
     |  ld.d TMP1, 0(RA)
     |  ins_next1
@@ -3722,18 +3717,16 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  slli.w TMP1, TMP3, 3
     |  ld.bu TMP3, TAB:CARG2->marked
     |  ld.d CARG1, TAB:CARG2->array
-    |  sltu TMP4, TMP2, CARG3
+    |  bltu TMP2, CARG3, >5
     |  add.d TMP2, RA, TMP0
-    |  bnez TMP4, >5
     |  add.d TMP1, TMP1, CARG1
     |  andi TMP0, TMP3, LJ_GC_BLACK	// isblack(table)
     |3:  // Copy result slots to table.
     |  ld.d CRET1, 0(RA)
     |  addi.d RA, RA, 8
-    |  sltu TMP4, RA, TMP2
     |  st.d CRET1, 0(TMP1)
     |  addi.d TMP1, TMP1, 8
-    |  bnez TMP4, <3
+    |  bltu RA, TMP2, <3
     |  bnez TMP0, >7
     |4:
     |  ins_next
