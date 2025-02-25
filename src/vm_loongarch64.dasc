@@ -3597,9 +3597,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d TAB:TMP0, TAB:RB->metatable
     |  beq CARG2, TISNIL, >4		// Key found, but nil value?
     |2:
-    |  andi TMP3, TMP3, LJ_GC_BLACK	// isblack(table)
+    |  andi TMP4, TMP3, LJ_GC_BLACK	// isblack(table)
     |  fst.d FTMP0, NODE:TMP2->val
-    |  bnez TMP3, >7
+    |  bnez TMP4, >7
     |3:
     |  ins_next
     |
