@@ -3770,11 +3770,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_CALLMT:
     |  // RA = base*8, (RB = 0,) RC = extra_nargs*8
     |  add.w NARGS8:RD, NARGS8:RD, MULTRES
-    |  b ->BC_CALLT_Z1
+    |  // Fall through. Assumes BC_CALLT follows.
     break;
   case BC_CALLT:
     |  // RA = base*8, (RB = 0,) RC = (nargs+1)*8
-    |->BC_CALLT_Z1:
     |  add.d RA, BASE, RA
     |  ld.d LFUNC:RB, 0(RA)
     |  or NARGS8:RC, RD, r0
@@ -3858,9 +3857,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d TMP1, TAB:RB->array
     |  slli.d CARG3, TISNUM, 47
     |1:  // Traverse array part.
-    |  sltu TMP2, RC, TMP0
+    |  bgeu RC, TMP0, >5		// Index points after array part?
     |  slli.w TMP3, RC, 3
-    |  beqz TMP2, >5			// Index points after array part?
     |  add.d TMP3, TMP1, TMP3
     |  ld.d CARG1, 0(TMP3)
     |  ld.hu RD, -4+OFS_RD(PC)		// ITERL RD
@@ -3882,9 +3880,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sub.w RC, RC, TMP0
     |  ld.d TMP2, TAB:RB->node
     |6:
-    |  sltu CARG1, TMP1, RC		// End of iteration? Branch to ITERL+1.
+    |  bltu TMP1, RC, <3		// End of iteration? Branch to ITERL+1.
     |  slli.w TMP3, RC, 5
-    |  bnez CARG1, <3
     |  slli.w RB, RC, 3
     |  sub.w TMP3, TMP3, RB
     |  add.d NODE:TMP3, TMP3, TMP2	// node = tab->node + (idx*32-idx*8)
@@ -3921,12 +3918,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  or TMP3, CARG2, CARG3
     |  addi.d TMP1, TMP1, -FF_next_N
     |  or TMP3, TMP3, TMP1
-    |  addu16i.d TMP1, r0, 0xfffe	// LJ_KEYINDEX >> 16
+    |  lu12i.w TMP1, 0xfffe7		// LJ_KEYINDEX >> 12
     |  bnez TMP3, >5
+    |  ori TMP1, TMP1, (LJ_KEYINDEX & 0xfff)
     |  add.d PC, TMP0, TMP2
-    |  slli.d TMP1, TMP1, 16
-    |  addu16i.d TMP1, TMP1, 0x7fff	// LJ_KEYINDEX & 0xffff
-    |  slli.d TMP1, TMP1, 16
+    |  slli.d TMP1, TMP1, 32
     |  st.d TMP1, -8(RA)
     |1:
     |  ins_next
@@ -3992,16 +3988,14 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.d MULTRES, r0, 8		// MULTRES = (0+1)*8
     |  bge r0, TMP1, <3			// No vararg slots?
     |  add.d TMP2, RA, TMP1
-    |  sltu TMP2, TMP0, TMP2
     |  addi.d MULTRES, TMP1, 8
-    |  bnez TMP2, >7
+    |  bltu TMP0, TMP2, >7
     |6:
     |  ld.d CRET1, 0(RC)
     |  addi.d RC, RC, 8
     |  st.d CRET1, 0(RA)
-    |  sltu TMP0, RC, TMP3
     |  addi.d RA, RA, 8
-    |  bnez TMP0, <6			// More vararg slots?
+    |  bltu RC, TMP3, <6		// More vararg slots?
     |  b <3
     |
     |7:  // Grow stack for varargs.
