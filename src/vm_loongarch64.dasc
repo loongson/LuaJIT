@@ -305,8 +305,7 @@
 |
 |.macro branch_RD
 |  srli.w TMP0, RD, 1
-|  addu16i.d TMP4, r0, -0x2	// -BCBIAS_J*4
-|  add.w TMP0, TMP0, TMP4	// (jump - 0x8000)<<2
+|  addu16i.d TMP0, TMP0, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
 |  add.d PC, PC, TMP0
 |.endmacro
 |
@@ -864,9 +863,8 @@ static void build_subroutines(BuildCtx *ctx)
   |4:
   |  ld.hu RD, OFS_RD(PC)
   |  addi.d PC, PC, 4
-  |  addu16i.d TMP1, r0, -0x2		// -BCBIAS_J*4
   |  slli.w RD, RD, 2
-  |  add.w RD, RD, TMP1
+  |  addu16i.d RD, RD, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
   |  and RD, RD, TMP2
   |  add.d PC, PC, RD
   |->cont_nop:
@@ -2563,9 +2561,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  bne CARG4, TISNUM, >5
     |  slli.w CARG1, CARG1, 0
     |  slli.w CARG2, CARG2, 0
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     |  slt TMP1, CARG1, CARG2
-    |  add.w TMP2, TMP2, TMP3		// TMP2=(jump-0x8000)<<2
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     if (op == BC_ISLT || op == BC_ISGT) {
       |  maskeqz TMP2, TMP2, TMP1
     } else {
@@ -2577,7 +2574,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |2:  // RA is not an integer.
     |  sltui TMP1, CARG3, LJ_TISNUM
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     |  beqz TMP1, ->vmeta_comp
     |  sltui TMP1, CARG4, LJ_TISNUM
     |  decode_BC4b TMP2
@@ -2590,7 +2586,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     } else {
       |  fcmp.cult.d FCC0, FTMP0, FTMP2
     }
-    |  add.w TMP2, TMP2, TMP3
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  movcf2gr TMP3, FCC0
     if (op == BC_ISLT || op == BC_ISGT) {
       |  maskeqz TMP2, TMP2, TMP3
@@ -2615,7 +2611,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |5:  // RA is an integer, RD is not an integer
     |  sltui TMP1, CARG4, LJ_TISNUM
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     |  beqz TMP1, ->vmeta_comp
     |  // RA is an integer, RD is a number. Convert RA to a number.
     if (op == BC_ISLT || op == BC_ISGE) {
@@ -2644,7 +2639,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sltu TMP0, TISNUM, CARG3
     |  sltu TMP1, TISNUM, CARG4
     |  or TMP0, TMP0, TMP1
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     if (vk) {
       |  beqz TMP0, ->BC_ISEQN_Z
     } else {
@@ -2657,9 +2651,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  beq CARG3, TMP0, ->vmeta_equal_cd
     |  beq CARG4, TMP0, ->vmeta_equal_cd
     |.endif
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     |  decode_BC4b TMP2
-    |  add.w TMP2, TMP2, TMP3		// (jump-0x8000)<<2
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  bne CARG1, CARG2, >2
     |  // Tag and value are equal.
     if (vk) {
@@ -2714,12 +2707,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.w TMP0, r0, LJ_TSTR
     |  decode_BC4b TMP2
     |  settp CARG2, TMP0
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     |.if FFI
     |  beq CARG3, TMP1, ->vmeta_equal_cd
     |.endif
     |  xor TMP0, CARG1, CARG2		// TMP2=0: A==D; TMP2!=0: A!=D
-    |  add.w TMP2, TMP2, TMP3
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     if (vk) {
       |  masknez TMP2, TMP2, TMP0
     } else {
@@ -2740,15 +2732,14 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.d PC, PC, 4
     |  gettp CARG3, CARG1
     |  gettp CARG4, CARG2
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     if (vk) {
       |->BC_ISEQN_Z:
     } else {
       |->BC_ISNEN_Z:
     }
     |  decode_BC4b TMP2
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  bne CARG3, TISNUM, >4
-    |  add.w TMP2, TMP2, TMP3
     |  bne CARG4, TISNUM, >6
     |  xor TMP0, CARG1, CARG2		// TMP0=0: A==D; TMP0!=0: A!=D
     |1:
@@ -2766,7 +2757,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |4:  // RA is not an integer.
     |  sltu TMP0, CARG3, TISNUM
-    |  add.w TMP2, TMP2, TMP3
     |.if FFI
     |  beqz TMP0, >7
     |.else
@@ -2824,8 +2814,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  beq TMP1, TMP3, ->vmeta_equal_cd
     |.endif
     |  decode_BC4b TMP2
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
-    |  add.w TMP2, TMP2, TMP3		// TMP2=(jump-0x8000)<<2
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     if (vk) {
       |  masknez TMP2, TMP2, TMP0
     } else {
@@ -2847,8 +2836,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d RA, BASE, RA
     |  sltui TMP0, TMP0, LJ_TISTRUECOND	// TMP0=1 true; TMP0=0 false
     |  decode_BC4b TMP2
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
-    |  add.w TMP2, TMP2, TMP3		// (jump-0x8000)<<2
+    |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     if (op == BC_IST || op == BC_ISTC) {
       |  beqz TMP0, >1
       if (op == BC_ISTC) {
@@ -3865,11 +3853,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  or TMP2, RC, CARG3
     |  addi.w RC, RC, 1
     |  beq CARG1, TISNIL, <1		// Skip holes in array part.
+    |  decode_BC4b RD
     |  st.d TMP2, 0(RA)
     |  st.d CARG1, 8(RA)
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
-    |  decode_BC4b RD
-    |  add.d RD, RD, TMP3
+    |  addu16i.d RD, RD, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  st.w RC, -8(RA)			// Update control var.
     |  add.d PC, PC, RD
     |3:
@@ -3890,11 +3877,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.w RC, RC, 1
     |  beq CARG1, TISNIL, <6		// Skip holes in hash part.
     |  ld.d CARG2, NODE:TMP3->key
-    |  addu16i.d TMP3, r0, -0x2		// -BCBIAS_J*4
     |  st.d CARG1, 8(RA)
-    |  add.w RC, RC, TMP0
     |  decode_BC4b RD
-    |  add.w RD, RD, TMP3
+    |  add.w RC, RC, TMP0
+    |  addu16i.d RD, RD, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  st.d CARG2, 0(RA)
     |  add.d PC, PC, RD
     |  st.w RC, -8(RA)			// Update control var.
@@ -3909,7 +3895,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d TMP0, PC, TMP0
     |  ld.d CARG2, -16(RA)
     |  ld.d CARG3, -8(RA)
-    |  addu16i.d TMP2, r0, -0x2		// -BCBIAS_J*4
+    |  addu16i.d PC, TMP0, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  checkfunc CFUNC:CARG1, >5
     |  gettp CARG2, CARG2
     |  addi.d CARG2, CARG2, -LJ_TTAB
@@ -3921,7 +3907,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lu12i.w TMP1, 0xfffe7		// LJ_KEYINDEX >> 12
     |  bnez TMP3, >5
     |  ori TMP1, TMP1, (LJ_KEYINDEX & 0xfff)
-    |  add.d PC, TMP0, TMP2
     |  slli.d TMP1, TMP1, 32
     |  st.d TMP1, -8(RA)
     |1:
@@ -3930,7 +3915,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.d TMP3, r0, BC_JMP
     |  addi.d TMP1, r0, BC_ITERC
     |  st.b TMP3, -4+OFS_OP(PC)
-    |  add.d PC, TMP0, TMP2
     |.if JIT
     |  ld.b TMP0, OFS_OP(PC)
     |  addi.d TMP3, r0, BC_ITERN
@@ -4143,8 +4127,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  gettp CARG6, CARG3
     if (op != BC_JFORL) {
       |  srli.w RD, RD, 1
-      |  addu16i.d TMP2, r0, -0x2	// -BCBIAS_J<<2
-      |  add.d TMP2, RD, TMP2
+      |  addu16i.d TMP2, RD, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     }
     |  bne CARG4, TISNUM, >3
     |  slli.w CARG4, CARG1, 0		// start
