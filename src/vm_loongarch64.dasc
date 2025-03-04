@@ -4004,12 +4004,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_RETM:
     |  // RA = results*8, RD = extra_nresults*8
     |  add.w RD, RD, MULTRES
-    |  b ->BC_RET_Z1
+    |  // Fall through. Assumes BC_RET follows.
     break;
 
   case BC_RET:
     |  // RA = results*8, RD = (nresults+1)*8
-    |->BC_RET_Z1:
     |  ld.d PC, FRAME_PC(BASE)
     |  add.d RA, BASE, RA
     |  or MULTRES, RD, r0
@@ -4038,13 +4037,13 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |3:
     |  addi.d TMP3, TMP3, -8
     |5:
-    |  sltu TMP0, TMP2, TMP3
     |  ld.d LFUNC:TMP1, FRAME_FUNC(BASE)
-    |  bnez TMP0, >6
+    |  bltu TMP2, TMP3, >6
+    |  ins_next1
     |  cleartp LFUNC:TMP1
     |  ld.d TMP1, LFUNC:TMP1->pc
     |  ld.d KBASE, PC2PROTO(k)(TMP1)
-    |  ins_next
+    |  ins_next2
     |
     |6:  // Fill up results with nil.
     |  st.d TISNIL, 0(TMP2)
@@ -4080,9 +4079,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
       |  st.d CRET1, 0(TMP2)
     }
     |5:
-    |  sltu TMP0, RD, RB
     |  ld.d TMP1, FRAME_FUNC(BASE)
-    |  bnez TMP0, >6
+    |  bltu  RD, RB, >6
     |  cleartp LFUNC:TMP1
     |  ld.d TMP1, LFUNC:TMP1->pc
     |  ins_next1
