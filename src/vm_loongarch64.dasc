@@ -116,6 +116,7 @@
 |
 |.define FCC0,		fcc0
 |.define FCC1,		fcc1
+|.define FCC2,		fcc2
 |
 |// Stack layout while in interpreter. Must match with lj_frame.h.
 |// LoongArch64 hard-float.
@@ -4155,7 +4156,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
       |  or CARG2, CARG3, TMP3		// CARG2=1: overflow; CARG2=0: continue
       |  bstrpick.d CARG1, CARG1, 31, 0
       |  settp CARG1, TISNUM
-      |  st.d CARG1, FORL_IDX*8(RA)
     }
     |1:
     if (op == BC_FORI) {
@@ -4167,6 +4167,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     } else if (op == BC_IFORL) {
       |  masknez TMP2, TMP2, CARG2	// CARG2~=0: next INS; CARG2==0: jump back
       |  add.d PC, PC, TMP2
+    }
+    if (vk) {
+      |  st.d CARG1, FORL_IDX*8(RA)
     }
     |  ins_next1
     |  st.d CARG1, FORL_EXT*8(RA)
@@ -4184,7 +4187,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  fld.d FTMP1, FORL_STOP*8(RA)	// stop
     |  ld.d TMP0, FORL_STEP*8(RA)	// step
     |  slt TMP0, TMP0, r0		// step < 0 ?
-    |  movgr2fr.d FTMP2, TMP0
+    |  movgr2cf FCC0, TMP0
     if (!vk) {
       |  sltui TMP3, CARG4, LJ_TISNUM	// start is number ?
       |  sltui TMP0, CARG5, LJ_TISNUM	// step is number ?
@@ -4192,22 +4195,20 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
       |  and TMP3, TMP3, TMP1
       |  and TMP0, TMP0, TMP3
       |  beqz TMP0, ->vmeta_for		// if start or step or stop isn't number
-      |  fcmp.clt.d FCC0, FTMP0, FTMP1	// start < stop ?
-      |  fcmp.clt.d FCC1, FTMP1, FTMP0	// stop < start ?
-      |  movcf2fr FTMP3, FCC0
-      |  movcf2fr FTMP4, FCC1
-      |  movfr2cf FCC0, FTMP2
+      |  fcmp.clt.d FCC1, FTMP0, FTMP1	// start < stop ?
+      |  fcmp.clt.d FCC2, FTMP1, FTMP0	// stop < start ?
+      |  movcf2fr FTMP3, FCC1
+      |  movcf2fr FTMP4, FCC2
       |  fsel FTMP2, FTMP4, FTMP3, FCC0
       |  movfr2gr.d CARG2, FTMP2	// CARG2=0:+,start<stop or -,start>stop
       |  b <1
     } else {
       |  fld.d FTMP3, FORL_STEP*8(RA)
       |  fadd.d FTMP0, FTMP0, FTMP3	// start + step
-      |  fcmp.clt.d FCC0, FTMP0, FTMP1	// start + step < stop ?
-      |  fcmp.clt.d FCC1, FTMP1, FTMP0
-      |  movcf2fr FTMP3, FCC0
-      |  movcf2fr FTMP4, FCC1
-      |  movfr2cf FCC0, FTMP2
+      |  fcmp.clt.d FCC1, FTMP0, FTMP1	// start + step < stop ?
+      |  fcmp.clt.d FCC2, FTMP1, FTMP0
+      |  movcf2fr FTMP3, FCC1
+      |  movcf2fr FTMP4, FCC2
       |  fsel FTMP2, FTMP4, FTMP3, FCC0
       |  movfr2gr.d CARG2, FTMP2
       if (op == BC_IFORL) {
