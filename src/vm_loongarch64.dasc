@@ -4305,12 +4305,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d TMP2, L->maxstack
     |  ld.bu TMP1, -4+PC2PROTO(numparams)(PC)
     |  ld.d KBASE, -4+PC2PROTO(k)(PC)
-    |  sltu TMP0, TMP2, RA
     |  slli.w TMP1, TMP1, 3		// numparams*8
-    |  bnez TMP0, ->vm_growstack_l
+    |  bltu TMP2, RA, ->vm_growstack_l
     |2:
-    |  sltu TMP0, NARGS8:RC, TMP1	// Check for missing parameters.
-    |  bnez TMP0, >3
+    |  bltu NARGS8:RC, TMP1, >3		// Check for missing parameters.
     if (op == BC_JFUNCF) {
       |  decode_RD RD, INS
       |  b =>BC_JLOOP
@@ -4342,10 +4340,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  st.d LFUNC:RB, 0(TMP1)		// Store (tagged) copy of LFUNC.
     |  addi.d TMP2, TMP2, -8
     |  addi.d TMP3, RC, 16+FRAME_VARG
-    |  sltu TMP0, TMP0, TMP2
     |  ld.d KBASE, -4+PC2PROTO(k)(PC)
     |  st.d TMP3, 8(TMP1)		// Store delta + FRAME_VARG.
-    |  beqz TMP0, ->vm_growstack_l
+    |  bgeu TMP0, TMP2, ->vm_growstack_l
     |  ld.bu TMP2, -4+PC2PROTO(numparams)(PC)
     |  or RA, BASE, r0
     |  or RC, TMP1, r0
@@ -4353,26 +4350,18 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.d BASE, TMP1, 16
     |  beqz TMP2, >2
     |1:
-    |  ld.d TMP0, 0(RA)
-    |  sltu CARG2, RA, RC		// Less args than parameters?
-    |  or CARG1, TMP0, r0
-    |  addi.d RA, RA, 8
     |  addi.d TMP1, TMP1, 8
     |  addi.w TMP2, TMP2, -1
-    |  beqz CARG2, >3
-    |  masknez TMP3, CARG1, CARG2	// Clear old fixarg slot (help the GC).
-    |  maskeqz CARG1, TISNIL, CARG2
-    |  or CARG1, CARG1, TMP3
-    |  st.d CARG1, -8(RA)
+    |  bgeu RA, RC, >3		// Less args than parameters?
+    |  ld.d TMP0, 0(RA)
+    |  addi.d RA, RA, 8
+    |  st.d TISNIL, -8(RA)
     |  st.d TMP0, 8(TMP1)
     |  bnez TMP2, <1
     |2:
     |  ins_next2
     |3:
-    |  maskeqz TMP0, TMP0, CARG2	// Clear missing fixargs.
-    |  masknez TMP3, TISNIL, CARG2
-    |  or TMP0, TMP0, TMP3
-    |  st.d TMP0, 8(TMP1)
+    |  st.d TISNIL, 8(TMP1)
     |  bnez TMP2, <1
     |  b <2
     break;
@@ -4390,13 +4379,12 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d RC, BASE, NARGS8:RC
     |  st.d BASE, L->base		// base of currently excuting function
     |  st.d RC, L->top
-    |  sltu TMP3, TMP2, TMP1
     |  li_vmstate C			// addi.w TMP0, r0, ~LJ_VMST_C
     if (op == BC_FUNCCW) {
       |  ld.d CARG2, CFUNC:RB->f
     }
     |  or CARG1, L, r0
-    |  bnez TMP3, ->vm_growstack_c	// Need to grow stack.
+    |  bltu TMP2, TMP1, ->vm_growstack_c	// Need to grow stack.
     |  st_vmstate			// .STXW TMP0, DISPATCH, DISPATCH_GL(vmstate)
     |  jirl r1, CARG4, 0		// (lua_State *L [, lua_CFunction f])
     |  // Returns nresults.
