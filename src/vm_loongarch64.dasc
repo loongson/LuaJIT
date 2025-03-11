@@ -19,40 +19,10 @@
 |// Fixed register assignments for the interpreter.
 |// Don't use: r0 = 0, r1 = ra, r2 = tp, r3 = sp, r21 = reserved
 |
-|.macro .STXW, a, b, c
-|  addu16i.d r20, r0, c
-|  srai.d r20, r20, 16
-|  stx.w a, b, r20
-|.endmacro
-|
-|.macro .STXD, a, b, c
-|  addu16i.d r20, r0, c
-|  srai.d r20, r20, 16
-|  stx.d a, b, r20
-|.endmacro
-|
-|.macro .LDXW, a, b, c
-|  addu16i.d r20, r0, c
-|  srai.d r20, r20, 16
-|  ldx.w a, b, r20
-|.endmacro
-|
-|.macro .LDXD, a, b, c
-|  addu16i.d r20, r0, c
-|  srai.d r20, r20, 16
-|  ldx.d a, b, r20
-|.endmacro
-|
-|.macro .LDXBU, a, b, c
-|  addu16i.d r20, r0, c
-|  srai.d r20, r20, 16
-|  ldx.bu a, b, r20
-|.endmacro
-|
-|.macro .ADD16I, a, b, c
-|  addu16i.d r20, r0, c
-|  srai.d r20, r20, 16
-|  add.d a, b, r20
+|.macro add32i_d, rd, rj, si32
+|  lu12i.w r20, (si32)>>12
+|  ori r20, r20, si32&0xfff
+|  add.d rd, rj, r20
 |.endmacro
 |
 |// The following must be C callee-save (but BASE is often refetched).
@@ -66,7 +36,7 @@
 |.define JGL,		r22	// On-trace: global_State.
 |
 |// Constants for type-comparisons, stores and conversions. C callee-save.
-|.define TISNIL,	r22
+|.define TISNIL,	r31
 |.define TISNUM,	r29
 |.define TOBIT,		f30	// 2^52 + 2^51.
 |
@@ -193,7 +163,7 @@
 |
 |// Type definitions. Some of these are only used for documentation.
 |.type L,		lua_State,	LREG
-|.type GL,		global_State
+|.type GL,		global_State,	JGL
 |.type TVALUE,		TValue
 |.type GCOBJ,		GCobj
 |.type STR,		GCstr
@@ -311,8 +281,8 @@
 |.endmacro
 |
 |// Assumes DISPATCH is relative to GL.
-#define DISPATCH_GL(field)	(GG_DISP2G + (int)offsetof(global_State, field))
 #define DISPATCH_J(field)	(GG_DISP2J + (int)offsetof(jit_State, field))
+#define GL_J(field)		(GG_G2J + (int)offsetof(jit_State, field))
 |
 #define PC2PROTO(field)  ((int)offsetof(GCproto, field)-(int)sizeof(GCproto))
 |
@@ -336,13 +306,13 @@
 |
 |// Set current VM state. Uses TMP0.
 |.macro li_vmstate, st; addi.w TMP0, r0, ~LJ_VMST_..st; .endmacro
-|.macro st_vmstate; .STXW TMP0, DISPATCH, DISPATCH_GL(vmstate); .endmacro
+|.macro st_vmstate; st.d TMP0, GL->vmstate; .endmacro
 |
 |// Move table write barrier back. Overwrites mark and tmp.
 |.macro barrierback, tab, mark, tmp, target
-|  .LDXD tmp, DISPATCH, DISPATCH_GL(gc.grayagain)
+|  ld.d tmp, GL->gc.grayagain
 |  andi mark, mark, ~LJ_GC_BLACK & 255		// black2gray(tab)
-|  .STXD tab, DISPATCH, DISPATCH_GL(gc.grayagain)
+|  st.d tab, GL->gc.grayagain
 |  st.b mark, tab->marked
 |  st.d tmp, tab->gclist
 |  b target
@@ -508,8 +478,8 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_unwind_c_eh:			// Landing pad for external unwinder.
   |  ld.d L, SAVE_L(sp)
   |  addi.w TMP0, r0, ~LJ_VMST_C
-  |  ld.d GL:TMP1, L->glref
-  |  st.w TMP0, GL:TMP1->vmstate
+  |  ld.d GL, L->glref
+  |  st.w TMP0, GL->vmstate
   |  b ->vm_leave_unw
   |
   |->vm_unwind_ff:			// Unwind C stack, return from ff pcall.
@@ -522,14 +492,14 @@ static void build_subroutines(BuildCtx *ctx)
   |  addi.d TISNIL, r0, LJ_TNIL
   |  addi.d TISNUM, r0, LJ_TISNUM
   |  ld.d BASE, L->base
-  |  ld.d DISPATCH, L->glref		// Setup pointer to dispatch table.
+  |  ld.d GL, L->glref			// Setup pointer to dispatch table.
   |  movgr2fr.w TOBIT, TMP3
   |  mov_false TMP1
   |  li_vmstate INTERP
   |  ld.d PC, FRAME_PC(BASE)		// Fetch PC of previous frame.
   |  fcvt.d.s TOBIT, TOBIT
   |  addi.d RA, BASE, -8		// Results start at BASE-8.
-  |  .ADD16I DISPATCH, DISPATCH, GG_G2DISP
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  st.d TMP1, 0(RA)			// Prepend false to error message.
   |  st_vmstate
   |  addi.d RD, r0, 16			// 2 results: false + error message.
@@ -573,22 +543,22 @@ static void build_subroutines(BuildCtx *ctx)
   |  // (lua_State *L, TValue *base, int nres1 = 0, ptrdiff_t ef = 0)
   |  saveregs
   |  or L, CARG1, r0
-  |  ld.d DISPATCH, L->glref		// Setup pointer to dispatch table.
+  |  ld.d GL, L->glref			// Setup pointer to dispatch table.
   |  or BASE, CARG2, r0
   |  ld.bu TMP1, L->status
   |  st.d L, SAVE_L(sp)
   |  addi.d PC, r0, FRAME_CP
   |  addi.d TMP0, sp, CFRAME_RESUME
-  |  .ADD16I DISPATCH, DISPATCH, GG_G2DISP
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  st.w r0, SAVE_NRES(sp)
   |  st.w r0, SAVE_ERRF(sp)
-  |  st.d CARG1, SAVE_PC(sp)			// Any value outside of bytecode is ok.
+  |  st.d CARG1, SAVE_PC(sp)		// Any value outside of bytecode is ok.
   |  st.d r0, SAVE_CFRAME(sp)
   |  st.d TMP0, L->cframe
   |  beqz TMP1, >3
   |
   |  // Resume after yield (like a return).
-  |  .STXD L, DISPATCH, DISPATCH_GL(cur_L)
+  |  st.d L, GL->cur_L
   |  or RA, BASE, r0
   |  ld.d BASE, L->base
   |  ld.d TMP1, L->top
@@ -624,16 +594,16 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d TMP1, L:CARG1->cframe
   |  or L, CARG1, r0
   |  st.w CARG3, SAVE_NRES(sp)
-  |  ld.d DISPATCH, L->glref		// Setup pointer to dispatch table.
+  |  ld.d GL, L->glref			// Setup pointer to dispatch table.
   |  st.d CARG1, SAVE_L(sp)
   |  or BASE, CARG2, r0
-  |  .ADD16I DISPATCH, DISPATCH, GG_G2DISP
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  st.d CARG1, SAVE_PC(sp)		// Any value outside of bytecode is ok.
   |  st.d TMP1, SAVE_CFRAME(sp)
   |  st.d sp, L->cframe			// Add our C frame to cframe chain.
   |
   |3:  // Entry point for vm_cpcall/vm_resume (BASE = base, PC = ftype).
-  |  .STXD L, DISPATCH, DISPATCH_GL(cur_L)
+  |  st.d L, GL->cur_L
   |  ld.d TMP2, L->base			// TMP2 = old base (used in vmeta_call).
   |  addu16i.d TMP3, r0, 0x59c0		// TOBIT = 2^52 + 2^51 (float).
   |  ld.d TMP1, L->top
@@ -663,16 +633,16 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d TMP0, L:CARG1->stack
   |  st.d CARG1, SAVE_L(sp)
   |  ld.d TMP1, L->top
-  |  ld.d DISPATCH, L->glref		// Setup pointer to dispatch table.
+  |  ld.d GL, L->glref			// Setup pointer to dispatch table.
   |  st.d CARG1, SAVE_PC(sp)		// Any value outside of bytecode is ok.
   |  sub.d TMP0, TMP0, TMP1		// Compute -savestack(L, L->top).
   |  ld.d TMP1, L->cframe
-  |  .ADD16I DISPATCH, DISPATCH, GG_G2DISP
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  st.w TMP0, SAVE_NRES(sp)		// Neg. delta means cframe w/o frame.
   |  st.w r0, SAVE_ERRF(sp)		// No error function.
   |  st.d TMP1, SAVE_CFRAME(sp)
   |  st.d sp, L->cframe			// Add our C frame to cframe chain.
-  |  .STXD L, DISPATCH, DISPATCH_GL(cur_L)
+  |  st.d L, GL->cur_L
   |  jirl r1, CARG4, 0			// (lua_State *L, lua_CFunction func, void *ud)
   |  or BASE, CRET1, r0
   |  addi.d PC, r0, FRAME_CP
@@ -733,25 +703,25 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Table indexing metamethods -----------------------------------------
   |
   |->vmeta_tgets1:
-  |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG3, GL, offsetof(global_State, tmptv)
   |  addi.d TMP0, r0, LJ_TSTR
   |  settp STR:RC, TMP0
   |  st.d STR:RC, 0(CARG3)
   |  b >1
   |
   |->vmeta_tgets:
-  |  .ADD16I CARG2, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG2, GL, offsetof(global_State, tmptv)
   |  addi.d TMP0, r0, LJ_TTAB
   |  addi.d TMP1, r0, LJ_TSTR
   |  settp TAB:RB, TMP0
-  |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv2)
+  |  addi.d CARG3, GL, offsetof(global_State, tmptv2)
   |  st.d TAB:RB, 0(CARG2)
   |  settp STR:RC, TMP1
   |  st.d STR:RC, 0(CARG3)
   |  b >1
   |
   |->vmeta_tgetb:			// TMP0 = index
-  |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG3, GL, offsetof(global_State, tmptv)
   |  settp TMP0, TISNUM
   |  st.d TMP0, 0(CARG3)
   |
@@ -789,25 +759,25 @@ static void build_subroutines(BuildCtx *ctx)
   |//-----------------------------------------------------------------------
   |
   |->vmeta_tsets1:
-  |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG3, GL, offsetof(global_State, tmptv)
   |  addi.d TMP0, r0, LJ_TSTR
   |  settp STR:RC, TMP0
   |  st.d STR:RC, 0(CARG3)
   |  b >1
   |
   |->vmeta_tsets:
-  |  .ADD16I CARG2, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG2, GL, offsetof(global_State, tmptv)
   |  addi.d TMP0, r0, LJ_TTAB
   |  addi.d TMP1, r0, LJ_TSTR
   |  settp TAB:RB, TMP0
-  |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv2)
+  |  addi.d CARG3, GL, offsetof(global_State, tmptv2)
   |  st.d TAB:RB, 0(CARG2)
   |  settp STR:RC, TMP1
   |  st.d STR:RC, 0(CARG3)
   |  b  >1
   |
   |->vmeta_tsetb:			// TMP0 = index
-  |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG3, GL, offsetof(global_State, tmptv)
   |  settp TMP0, TISNUM
   |  st.d TMP0, 0(CARG3)
   |
@@ -1073,8 +1043,8 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |// Inlined GC threshold check.
   |.macro ffgccheck
-  |  .LDXD TMP0, DISPATCH, DISPATCH_GL(gc.total)
-  |  .LDXD TMP1, DISPATCH, DISPATCH_GL(gc.threshold)
+  |  ld.d TMP0, GL->gc.total
+  |  ld.d TMP1, GL->gc.threshold
   |  bltu TMP0, TMP1, >1
   |  bl ->fff_gcstep
   |1:
@@ -1125,7 +1095,7 @@ static void build_subroutines(BuildCtx *ctx)
   |1:  // Field metatable must be at same offset for GCtab and GCudata!
   |  ld.d TAB:RB, TAB:CARG1->metatable
   |2:
-  |  .LDXD STR:RC, DISPATCH, DISPATCH_GL(gcroot[GCROOT_MMNAME+MM_metatable])
+  |  ld.d STR:RC, GL->gcroot[GCROOT_MMNAME+MM_metatable]
   |  addi.d CARG1, r0, LJ_TNIL
   |  beqz TAB:RB, ->fff_restv
   |  ld.w TMP0, TAB:RB->hmask
@@ -1159,8 +1129,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  masknez TMP3, TMP2, TMP3
   |  or TMP2, TMP0, TMP3
   |  slli.d TMP2, TMP2, 3
-  |  sub.d TMP0, DISPATCH, TMP2
-  |  .LDXD TAB:RB, TMP0, DISPATCH_GL(gcroot[GCROOT_BASEMT])-8
+  |  sub.d TMP0, GL, TMP2
+  |  ld.d TAB:RB, (offsetof(global_State, gcroot[GCROOT_BASEMT])-8)(TMP0)
   |  b <2
   |
   |.ffunc_2 setmetatable
@@ -1212,7 +1182,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  // A __tostring method in the string base metatable is ignored.
   |  beqz TMP1, ->fff_restv	// String key?
   |  // Handle numbers inline, unless a number base metatable is present.
-  |  .LDXD TMP1, DISPATCH, DISPATCH_GL(gcroot[GCROOT_BASEMT_NUM])
+  |  ld.d TMP1, GL->gcroot[GCROOT_BASEMT_NUM]
   |  sltu TMP0, TISNUM, TMP0
   |  st.d BASE, L->base			// Add frame since C call can throw.
   |  or TMP0, TMP0, TMP1
@@ -1325,7 +1295,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc pcall
   |  ld.d TMP1, L->maxstack
   |  add.d TMP2, BASE, NARGS8:RC
-  |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
+  |  ld.bu TMP3, GL->hookmask
   |  bltu TMP1, TMP2, ->fff_fallback
   |  addi.d NARGS8:TMP0, NARGS8:RC, -8
   |  or TMP2, BASE, r0
@@ -1354,7 +1324,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  addi.d NARGS8:TMP0, NARGS8:RC, -16
   |  ld.d CARG2, 8(BASE)
   |  blt NARGS8:TMP0, r0, ->fff_fallback
-  |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
+  |  ld.bu TMP3, GL->hookmask
   |  gettp TMP2, CARG2
   |  addi.d TMP2, TMP2, -LJ_TFUNC
   |  bnez TMP2, ->fff_fallback		// Traceback must be a function.
@@ -1430,7 +1400,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d TMP3, L:RA->top
   |  li_vmstate INTERP
   |  ld.d BASE, L->base
-  |  .STXD L, DISPATCH, DISPATCH_GL(cur_L)
+  |  st.d L, GL->cur_L
   |  st_vmstate
   |  sub.d RD, TMP3, TMP2
   |  beqz TMP1, >8
@@ -1621,9 +1591,9 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |.ffunc_n math_frexp
   |  ld.d PC, FRAME_PC(BASE)
-  |  .ADD16I CARG1, DISPATCH, DISPATCH_GL(tmptv)
+  |  addi.d CARG1, GL, offsetof(global_State, tmptv)
   |  bl extern frexp
-  |  .LDXW TMP1, DISPATCH, DISPATCH_GL(tmptv)
+  |  ld.w TMP1, GL->tmptv
   |  movgr2fr.w FARG2, TMP1
   |  fst.d FRET1, -16(BASE)
   |  ffint.d.w FARG2, FARG2
@@ -1785,7 +1755,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bge CARG3, r0, ->fff_newstr
   |->fff_emptystr:  // Return empty string.
   |  addi.d TMP1, r0, LJ_TSTR
-  |  .ADD16I STR:CARG1, DISPATCH, DISPATCH_GL(strempty)
+  |  addi.d STR:CARG1, GL, offsetof(global_State, strempty)
   |  settp CARG1, TMP1
   |  b ->fff_restv
   |
@@ -1795,7 +1765,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d CARG2, 0(BASE)
   |  beqz NARGS8:RC, ->fff_fallback
   |  checkstr STR:CARG2, ->fff_fallback
-  |  .ADD16I SBUF:CARG1, DISPATCH, DISPATCH_GL(tmpbuf)
+  |  addi.d SBUF:CARG1, GL, offsetof(global_State, tmpbuf)
   |  ld.d TMP0, SBUF:CARG1->b
   |  st.d L, SBUF:CARG1->L
   |  st.d BASE, L->base
@@ -1971,22 +1941,22 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |->vm_record:				// Dispatch target for recording phase.
   |.if JIT
-  |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
+  |  ld.bu TMP3, GL->hookmask
   |  andi TMP1, TMP3, HOOK_VMEVENT	// No recording while in vmevent.
   |  bnez TMP1, >5
   |  // Decrement the hookcount for consistency, but always do the call.
-  |  .LDXW TMP2, DISPATCH, DISPATCH_GL(hookcount)
+  |  ld.w TMP2, GL->hookcount
   |  andi TMP1, TMP3, HOOK_ACTIVE
   |  bnez TMP1, >1
   |  addi.w TMP2, TMP2, -1
   |  andi TMP1, TMP3, LUA_MASKLINE|LUA_MASKCOUNT
   |  beqz TMP1, >1
-  |  .STXW TMP2, DISPATCH, DISPATCH_GL(hookcount)
+  |  st.w TMP2, GL->hookcount
   |  b >1
   |.endif
   |
   |->vm_rethook:			// Dispatch target for return hooks.
-  |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
+  |  ld.bu TMP3, GL->hookmask
   |  andi TMP1, TMP3, HOOK_ACTIVE		// Hook already active?
   |  beqz TMP1, >1
   |5:  // Re-dispatch to static ins.
@@ -1994,14 +1964,14 @@ static void build_subroutines(BuildCtx *ctx)
   |  jirl r0, TMP1, 0
   |
   |->vm_inshook:			// Dispatch target for instr/line hooks.
-  |  .LDXBU TMP3, DISPATCH, DISPATCH_GL(hookmask)
-  |  .LDXW TMP2, DISPATCH, DISPATCH_GL(hookcount)
+  |  ld.bu TMP3, GL->hookmask
+  |  ld.w TMP2, GL->hookcount
   |  andi TMP1, TMP3, HOOK_ACTIVE		// Hook already active?
   |  bnez TMP1, <5
   |  andi TMP1, TMP3, LUA_MASKLINE|LUA_MASKCOUNT
   |  addi.w TMP2, TMP2, -1
   |  beqz TMP1, <5
-  |  .STXW TMP2, DISPATCH, DISPATCH_GL(hookcount)
+  |  st.w TMP2, GL->hookcount
   |  beqz TMP2, >1
   |  andi TMP1, TMP3, LUA_MASKLINE
   |  beqz TMP1, <5
@@ -2032,12 +2002,12 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_hotloop:			// Hot loop counter underflow.
   |.if JIT
   |  ld.d LFUNC:TMP1, FRAME_FUNC(BASE)
-  |  .ADD16I CARG1, DISPATCH, GG_DISP2J
+  |  addi.d CARG1, GL, GG_G2J
   |  cleartp LFUNC:TMP1
   |  st.d PC, SAVE_PC(sp)
   |  ld.d TMP1, LFUNC:TMP1->pc
   |  or CARG2, PC, r0
-  |  .STXD L, DISPATCH, DISPATCH_J(L)
+  |  st.d L, GL_J(L)(GL)
   |  ld.bu TMP1, PC2PROTO(framesize)(TMP1)
   |  st.d BASE, L->base
   |  slli.d TMP1, TMP1, 3
@@ -2111,9 +2081,9 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |  // Stitch a new trace to the previous trace.
   |  st.w TMP3, DISPATCH_J(exitno)(DISPATCH)
-  |  .STXD L, DISPATCH, DISPATCH_J(L)
+  |  st.d L, GL_J(L)(GL)
   |  st.d BASE, L->base
-  |  .ADD16I CARG1, DISPATCH, GG_DISP2J
+  |  addi.d CARG1, GL, GG_G2J
   |  or CARG2, PC, r0
   |  bl extern lj_dispatch_stitch	// (jit_State *J, const BCIns *pc)
   |  ld.d BASE, L->base
@@ -2174,17 +2144,17 @@ static void build_subroutines(BuildCtx *ctx)
   |  addi.d TMP2, sp, 32*8+32*8		// Recompute original value of sp.
   |  st.d TMP2, 32*8+3*8(sp)		// Store sp in RID_SP
   |  li_vmstate EXIT
-  |  .ADD16I DISPATCH, JGL, -GG_DISP2G
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  ld.w TMP1, 0(TMP2)			// Load exit number.
   |  st_vmstate
-  |  .LDXD L, DISPATCH, DISPATCH_GL(cur_L)
-  |  .LDXD BASE, DISPATCH, DISPATCH_GL(jit_base)
-  |  .STXD L, DISPATCH, DISPATCH_J(L)
+  |  ld.d L, GL->cur_L
+  |  ld.d BASE, GL->jit_base
+  |  st.d L, GL_J(L)(GL)
   |  st.w ra, DISPATCH_J(parent)(DISPATCH)	// Store trace number.
   |  st.d BASE, L->base
   |  st.w TMP1, DISPATCH_J(exitno)(DISPATCH)	// Store exit number.
-  |  .ADD16I CARG1, DISPATCH, GG_DISP2J
-  |  .STXD r0, DISPATCH, DISPATCH_GL(jit_base)
+  |  addi.d CARG1, GL, GG_G2J
+  |  st.d r0, GL->jit_base
   |  or CARG2, sp, r0
   |  bl extern lj_trace_exit		// (jit_State *J, ExitState *ex)
   |  // Returns MULTRES (unscaled) or negated error code.
@@ -2201,7 +2171,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.if JIT
   |  // CRET1 = MULTRES or negated error code, BASE, PC and JGL set.
   |  ld.d L, SAVE_L(sp)
-  |  .ADD16I DISPATCH, JGL, -GG_DISP2G
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  st.d BASE, L->base
   |1:
   |  ld.d LFUNC:RB, FRAME_FUNC(BASE)
@@ -2215,7 +2185,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  addi.d TISNUM, r0, LJ_TISNUM	// Setup type comparison constants.
   |  movgr2fr.w TOBIT, TMP3
   |  ld.d TMP1, LFUNC:RB->pc
-  |  .STXD r0, DISPATCH, DISPATCH_GL(jit_base)
+  |  st.d r0, GL->jit_base
   |  ld.d KBASE, PC2PROTO(k)(TMP1)
   |  fcvt.d.s TOBIT, TOBIT
   |  // Modified copy of ins_next which handles function header dispatch, too.
@@ -2223,7 +2193,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  addi.d PC, PC, 4
   |  addi.d CRET1, CRET1, 17
   |  // Assumes TISNIL == ~LJ_VMST_INTERP == -1
-  |  .STXW TISNIL, DISPATCH, DISPATCH_GL(vmstate)
+  |  st.d TISNIL, GL->vmstate
   |  decode_RD RD, INS
   |  beqz CRET1, >5
   |  decode_OP TMP1, INS
@@ -2255,7 +2225,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  jirl r0, TMP3, 0
   |
   |5:  // Dispatch to static entry of original ins replaced by BC_JLOOP.
-  |  .LDXD TMP0, DISPATCH, DISPATCH_J(trace)
+  |  ld.d TMP0, GL_J(trace)(GL)
   |  add.d TMP0, TMP0, RD
   |  ld.d TRACE:TMP2, 0(TMP0)
   |  ld.w INS, TRACE:TMP2->startins
@@ -2410,7 +2380,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.type CTSTATE, CTState, PC
   |  saveregs
   |  ld.d CTSTATE, GL:r17->ctype_state
-  |  .ADD16I DISPATCH, r17, GG_G2DISP
+  |  add32i_d DISPATCH, r17, GG_G2DISP
   |  st.w r19, CTSTATE->cb.slot
   |  st.d CARG1, CTSTATE->cb.gpr[0]
   |  fst.d FARG1, CTSTATE->cb.fpr[0]
@@ -2453,7 +2423,7 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |->cont_ffi_callback:			// Return from FFI callback.
   |.if FFI
-  |  .LDXD CTSTATE, DISPATCH, DISPATCH_GL(ctype_state)
+  |  ld.d CTSTATE, GL->ctype_state
   |  st.d BASE, L->base
   |  st.d RB, L->top
   |  st.d L, CTSTATE->L
@@ -3217,7 +3187,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  andi TMP3, TMP3, LJ_GC_WHITES	// iswhite(v)
     |  beqz TMP3, <1
     |  // Crossed a write barrier. Move the barrier forward.
-    |  .ADD16I CARG1, DISPATCH, GG_DISP2G
+    |  or CARG1, GL, r0 
     |  bl extern lj_gc_barrieruv	// (global_State *g, TValue *tv)
     |  b <1
     break;
@@ -3244,7 +3214,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |2:  // Check if string is white and ensure upvalue is closed.
     |  andi TMP0, TMP3, LJ_GC_WHITES	// iswhite(str)
     |  beqz TMP2, <1
-    |  .ADD16I CARG1, DISPATCH, GG_DISP2G
+    |  or CARG1, GL, r0
     |  beqz TMP0, <1
     |  // Crossed a write barrier. Move the barrier forward.
     |  bl extern lj_gc_barrieruv	// (global_State *g, TValue *tv)
@@ -3316,8 +3286,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_TNEW:
   case BC_TDUP:
     |  // RA = dst*8, RD = (hbits|asize)*8 | tab_const*8 (~)
-    |  .LDXD TMP0, DISPATCH, DISPATCH_GL(gc.total)
-    |  .LDXD TMP1, DISPATCH, DISPATCH_GL(gc.threshold)
+    |  ld.d TMP0, GL->gc.total
+    |  ld.d TMP1, GL->gc.threshold
     |  st.d BASE, L->base
     |  st.d PC, SAVE_PC(sp)
     |  bgeu TMP0, TMP1, >5
@@ -3611,7 +3581,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  andi TMP0, TMP0, 1<<MM_newindex
     |  beqz TMP0, ->vmeta_tsets		// 'no __newindex' flag NOT set: check.
     |6:
-    |  .ADD16I CARG3, DISPATCH, DISPATCH_GL(tmptv)
+    |  addi.d CARG3, GL, offsetof(global_State, tmptv)
     |  st.d BASE, L->base
     |  st.d RC, 0(CARG3)
     |  or CARG2, TAB:RB, r0
@@ -3926,7 +3896,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  b <1
     |.if JIT
     |6:  // Unpatch JLOOP.
-    |  .LDXD TMP0, DISPATCH, DISPATCH_J(trace)
+    |  ld.d TMP0, GL_J(trace)(GL)
     |  slli.w TMP2, TMP2, 3
     |  add.d TMP0, TMP0, TMP2
     |  ld.d TRACE:TMP2, 0(TMP0)
@@ -4267,15 +4237,14 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_JLOOP:
     |.if JIT
     |  // RA = base*8 (ignored), RD = traceno*8
-    |  .LDXD TMP0, DISPATCH, DISPATCH_J(trace)
+    |  ld.d TMP0, GL_J(trace)(GL)
     |  add.d TMP0, TMP0, RD
     |  // Traces on LOONGARCH don't store the trace number, so use 0.
-    |  .STXD r0, DISPATCH, DISPATCH_GL(vmstate)
+    |  st.d r0, GL->vmstate
     |  ld.d TRACE:TMP1, 0(TMP0)
-    |  .STXD BASE, DISPATCH, DISPATCH_GL(jit_base)	// store Current JIT code L->base
+    |  st.d BASE, GL->jit_base		// store Current JIT code L->base
     |  ld.d TMP1, TRACE:TMP1->mcode
-    |  .ADD16I JGL, DISPATCH, GG_DISP2G
-    |  .STXD L, DISPATCH, DISPATCH_GL(tmpbuf.L)
+    |  st.d L, GL->tmpbuf.L
     |  jirl r0, TMP1, 0
     |.endif
     break;
@@ -4372,7 +4341,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     if (op == BC_FUNCC) {
       |  ld.d CARG4, CFUNC:RB->f
     } else {
-      |  .LDXD CARG4, DISPATCH, DISPATCH_GL(wrapf)
+      |  ld.d CARG4, GL->wrapf
     }
     |  add.d TMP1, RA, NARGS8:RC
     |  ld.d TMP2, L->maxstack
@@ -4385,12 +4354,12 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     }
     |  or CARG1, L, r0
     |  bltu TMP2, TMP1, ->vm_growstack_c	// Need to grow stack.
-    |  st_vmstate			// .STXW TMP0, DISPATCH, DISPATCH_GL(vmstate)
+    |  st_vmstate
     |  jirl r1, CARG4, 0		// (lua_State *L [, lua_CFunction f])
     |  // Returns nresults.
     |  ld.d BASE, L->base
     |  ld.d TMP1, L->top
-    |  .STXD L, DISPATCH, DISPATCH_GL(cur_L)
+    |  st.d L, GL->cur_L
     |  slli.w RD, CRET1, 3
     |  li_vmstate INTERP
     |  ld.d PC, FRAME_PC(BASE)		// Fetch PC of caller.
