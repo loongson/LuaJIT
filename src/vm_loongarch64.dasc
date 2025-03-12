@@ -19,6 +19,7 @@
 |// Fixed register assignments for the interpreter.
 |// Don't use: r0 = 0, r1 = ra, r2 = tp, r3 = sp, r21 = reserved
 |
+|.macro ret; jirl r0, ra, 0; .endmacro
 |.macro mv, dst, src; or dst, src, r0; .endmacro
 |
 |.macro add32i_d, rd, rj, si32
@@ -160,7 +161,6 @@
 |  ld.d r23, SAVE_GPR_+0*8(sp)
 |  fld.d f24, SAVE_FPR_+0*8(sp)
 |  addi.d sp, sp, CFRAME_SPACE
-|  jirl r0, ra, 0
 |.endmacro
 |
 |// Type definitions. Some of these are only used for documentation.
@@ -437,6 +437,7 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |->vm_leave_unw:
   |  restoreregs_ret
+  |  ret
   |
   |6:
   |  ld.d TMP1, L->maxstack
@@ -1792,7 +1793,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  fadd.d FARG1, FARG1, TOBIT
   |  movfr2gr.s CRET1, FARG1
   |  bstrpick.d CRET1, CRET1, 31, 0
-  |  jirl r0, ra, 0
+  |  ret
   |
   |.macro .ffunc_bit, name
   |  .ffunc_1 bit_..name
@@ -2276,7 +2277,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  movgr2cf FCC0, TMP1
   |  fneg.d FTMP4, FTMP1
   |  fsel FRET1, FTMP1, FTMP4, FCC0
-  |  jirl r0, ra, 0
+  |  ret
   |.else
   |  fneg.d FTMP4, FTMP3
   |  slli.d TMP0, TMP0, 32
@@ -2290,10 +2291,10 @@ static void build_subroutines(BuildCtx *ctx)
   |.endif
   |  fsub.d FTMP4, FTMP1, FARG5		// If yes, subtract +-1.
   |  fsel FRET1, FTMP1, FTMP4, FCC0
-  |  jirl r0, ra, 0
+  |  ret
   |.endif
   |1:
-  |  jirl r0, ra, 0
+  |  ret
   |.endmacro
   |
   |
@@ -2345,7 +2346,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  st.d NEXT_TMP1, NEXT_RES_KEY
   |  or NEXT_RES_VK, NEXT_RES_PTR, r0
   |  or NEXT_RES_IDX, NEXT_IDX, r0
-  |  jirl r0, ra, 0
+  |  ret
   |
   |5:  // Traverse hash part.
   |  sub.w NEXT_RES_IDX, NEXT_IDX, NEXT_ASIZE
@@ -2369,7 +2370,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  or NEXT_RES_VK, NEXT_RES_PTR, r0
   |9:
   |  add.w NEXT_RES_IDX, NEXT_RES_IDX, NEXT_ASIZE
-  |  jirl r0, ra, 0
+  |  ret
   |.endif
   |
   |//-----------------------------------------------------------------------
@@ -2493,7 +2494,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  fst.d FRET2, CCSTATE:TMP1->fpr[1]
   |  mv sp, r23
   |  mv r23, TMP2
-  |  jirl r0, ra, 0
+  |  ret
   |.endif
   |// Note: vm_ffi_call must be the last function in this object file!
   |
