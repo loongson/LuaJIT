@@ -353,8 +353,7 @@
 |.endmacro
 |.macro checknum, reg, target
 |  gettp TMP4, reg
-|  sltui TMP4, TMP4, LJ_TISNUM
-|  beqz TMP4, target
+|  bgeu TMP4, TISNUM, target
 |.endmacro
 |
 |.macro mov_false, reg
@@ -1254,7 +1253,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bstrpick.d TMP0, TMP2, 31, 0
   |  settp TMP0, TISNUM
   |  st.d TMP0, 0(RA)
-  |  beqz TMP3, >2			// Not in array part?
+  |  beqz TMP3, >2		// Not in array part?
   |  slli.d TMP3, TMP2, 3
   |  add.d TMP3, TMP1, TMP3
   |  ld.d TMP1, 0(TMP3)
@@ -2074,8 +2073,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  add.d RA, RA, RB
   |  add.d RA, BASE, RA
   |3:
-  |  sltu TMP1, RC, RA
-  |  bnez TMP1, >9			// More results wanted?
+  |  bltu RC, RA, >9			// More results wanted?
   |
   |  ld.hu TMP3, TRACE:TMP2->traceno
   |  ld.hu RD, TRACE:TMP2->link
@@ -2461,10 +2459,9 @@ static void build_subroutines(BuildCtx *ctx)
   |1:
   |  ld.d TMP0, 0(TMP1)
   |  addi.d TMP1, TMP1, 8
-  |  sltu TMP4, TMP1, TMP3
   |  st.d TMP0, 0(TMP2)
   |  addi.d TMP2, TMP2, 8
-  |  bnez TMP4, <1
+  |  bltu TMP1, TMP3, <1
   |2:
   |  beqz CARG3, >3
   |  fld.d FARG1, CCSTATE->fpr[0]
@@ -2548,13 +2545,12 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_next
     |
     |2:  // RA is not an integer.
-    |  sltui TMP1, CARG3, LJ_TISNUM
-    |  beqz TMP1, ->vmeta_comp
-    |  sltui TMP1, CARG4, LJ_TISNUM
+    |  bgeu CARG3, TISNUM, ->vmeta_comp
     |  decode_BC4b TMP2
-    |  beqz TMP1, >4
+    |  bgeu CARG4, TISNUM, >4
     |  movgr2fr.d FTMP0, CARG1
     |  movgr2fr.d FTMP2, CARG2
+    |
     |3:  // RA and RD are both numbers.
     if (op == BC_ISLT || op == BC_ISGE) {
       |  fcmp.clt.d FCC0, FTMP0, FTMP2
@@ -2585,8 +2581,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  b <3
     |
     |5:  // RA is an integer, RD is not an integer
-    |  sltui TMP1, CARG4, LJ_TISNUM
-    |  beqz TMP1, ->vmeta_comp
+    |  bgeu CARG4, TISNUM, ->vmeta_comp
     |  // RA is an integer, RD is a number. Convert RA to a number.
     if (op == BC_ISLT || op == BC_ISGE) {
       |  movgr2fr.w FTMP0, CARG1
@@ -2731,11 +2726,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_next
     |
     |4:  // RA is not an integer.
-    |  sltu TMP0, CARG3, TISNUM
     |.if FFI
-    |  beqz TMP0, >7
+    |  bgeu CARG3, TISNUM, >7
     |.else
-    |  beqz TMP0, <2
+    |  bgeu CARG3, TISNUM, <2
     |.endif
     |  movgr2fr.d FTMP0, CARG1
     |  movgr2fr.d FTMP2, CARG2
@@ -2749,11 +2743,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  b <1
     |
     |6:  // RA is an integer, RD is a number.
-    |  sltu TMP0, CARG4, TISNUM
     |.if FFI
-    |  beqz TMP0, >8
+    |  bgeu CARG4, TISNUM, >8
     |.else
-    |  beqz TMP0, <2
+    |  bgeu CARG4, TISNUM, <2
     |.endif
     |  movgr2fr.w FTMP0, CARG1
     |  movgr2fr.d FTMP2, CARG2
@@ -2809,7 +2802,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.d PC, PC, 4
     |  gettp TMP0, CRET1
     |  add.d RA, BASE, RA
-    |  sltui TMP0, TMP0, LJ_TISTRUECOND	// TMP0=1 true; TMP0=0 false
+    |  sltui TMP0, TMP0, LJ_TISTRUECOND			// TMP0=1 true; TMP0=0 false
     |  decode_BC4b TMP2
     |  addu16i.d TMP2, TMP2, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     if (op == BC_IST || op == BC_ISTC) {
@@ -2887,9 +2880,8 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  settp TMP0, TISNUM
     |  b >2
     |1:
-    |  sltui TMP3, CARG3, LJ_TISNUM
     |  slli.d TMP1, TMP1, 32
-    |  beqz TMP3, ->vmeta_unm
+    |  bgeu CARG3, TISNUM, ->vmeta_unm
     |  xor TMP0, TMP0, TMP1		// sign => ~sign
     |2:
     |  st.d TMP0, 0(RA)
