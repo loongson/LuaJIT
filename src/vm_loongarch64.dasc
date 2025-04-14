@@ -403,7 +403,7 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_return:
   |  // BASE = base, RA = resultptr, RD/MULTRES = (nresults+1)*8, PC = return
   |  // TMP0 = PC & FRAME_TYPE
-  |  l12i TMP2, -8			// TMP2 = 0xfffffff8
+  |  l12i TMP2, ~FRAME_TYPEP		// TMP2 = 0xfffffff8
   |  xori TMP0, TMP0, FRAME_C
   |  and TMP2, PC, TMP2
   |  sub.d TMP2, BASE, TMP2		// TMP2 = previous base.
@@ -1225,14 +1225,13 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc_1 pairs
   |  checktp TAB:TMP1, CARG1, -LJ_TTAB, ->fff_fallback
   |  ld.d PC, FRAME_PC(BASE)
+  |  addi.d RA, BASE, -16
 #if LJ_52
   |  ld.d TAB:TMP2, TAB:TMP1->metatable
   |  ld.d TMP0, CFUNC:RB->upvalue[0]
-  |  addi.d RA, BASE, -16
   |  bnez TAB:TMP2, ->fff_fallback
 #else
   |  ld.d TMP0, CFUNC:RB->upvalue[0]
-  |  addi.d RA, BASE, -16
 #endif
   |  st.d TISNIL, 0(BASE)
   |  st.d CARG1, -8(BASE)
@@ -1253,7 +1252,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bstrpick.d TMP0, TMP2, 31, 0
   |  settp TMP0, TISNUM
   |  st.d TMP0, 0(RA)
-  |  beqz TMP3, >2		// Not in array part?
+  |  beqz TMP3, >2			// Not in array part?
   |  slli.d TMP3, TMP2, 3
   |  add.d TMP3, TMP1, TMP3
   |  ld.d TMP1, 0(TMP3)
@@ -2161,7 +2160,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  bl extern lj_trace_exit		// (jit_State *J, ExitState *ex)
   |  // Returns MULTRES (unscaled) or negated error code.
   |  ld.d TMP1, L->cframe
-  |  l12i TMP2, -4
+  |  l12i TMP2, CFRAME_RAWMASK
   |  ld.d BASE, L->base
   |  and sp, TMP1, TMP2
   |  ld.d PC, SAVE_PC(sp)		// Get SAVE_PC.
@@ -2649,7 +2648,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
       |  beqz TAB:TMP3, <1		// No metatable?
       |  ld.bu TMP3, TAB:TMP3->nomm
       |  andi TMP3, TMP3, 1<<MM_eq
-      |  l12i TMP0, 0		// ne = 0
+      |  l12i TMP0, 0			// ne = 0
       |  bnez TMP3, <1			// Or 'no __eq' flag set?
     } else {
       |  beqz TAB:TMP3,->BC_ISEQV_Z	// No metatable?
