@@ -308,7 +308,7 @@
 |.endmacro
 |
 |// Set current VM state. Uses TMP0.
-|.macro li_vmstate, st; addi.w TMP0, r0, ~LJ_VMST_..st; .endmacro
+|.macro li_vmstate, st; l12i TMP0, ~LJ_VMST_..st; .endmacro
 |.macro st_vmstate; st.d TMP0, GL->vmstate; .endmacro
 |
 |// Move table write barrier back. Overwrites mark and tmp.
@@ -395,7 +395,7 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_returnc:
   |  addi.w RD, RD, 8			// RD = (nresults+1)*8.
   |  andi TMP0, PC, FRAME_TYPE
-  |  addi.w CRET1, r0, LUA_YIELD
+  |  l12i CRET1, LUA_YIELD
   |  beqz RD, ->vm_unwind_c_eh
   |  mv MULTRES, RD
   |  beqz TMP0, ->BC_RET_Z		// Handle regular return to Lua.
@@ -403,7 +403,7 @@ static void build_subroutines(BuildCtx *ctx)
   |->vm_return:
   |  // BASE = base, RA = resultptr, RD/MULTRES = (nresults+1)*8, PC = return
   |  // TMP0 = PC & FRAME_TYPE
-  |  addi.w TMP2, r0, -8		// TMP2 = 0xfffffff8
+  |  l12i TMP2, -8			// TMP2 = 0xfffffff8
   |  xori TMP0, TMP0, FRAME_C
   |  and TMP2, PC, TMP2
   |  sub.d TMP2, BASE, TMP2		// TMP2 = previous base.
@@ -480,7 +480,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  mv CRET1, CARG2
   |->vm_unwind_c_eh:			// Landing pad for external unwinder.
   |  ld.d L, SAVE_L(sp)
-  |  addi.w TMP0, r0, ~LJ_VMST_C
+  |  l12i TMP0, ~LJ_VMST_C
   |  ld.d GL, L->glref
   |  st.w TMP0, GL->vmstate
   |  b ->vm_leave_unw
@@ -1075,7 +1075,7 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |.ffunc_1 type
   |  gettp TMP0, CARG1
-  |  addi.w TMP1, r0, ~LJ_TISNUM
+  |  l12i TMP1, ~LJ_TISNUM
   |  sltu TMP2, TISNUM, TMP0
   |  nor TMP3, TMP0, r0
   |  masknez TMP1, TMP1, TMP2
@@ -1109,7 +1109,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  slli.d TMP1, TMP1, 3
   |  sub.d TMP1, TMP0, TMP1
   |  add.d NODE:TMP2, NODE:TMP2, TMP1	// node = tab->node + (idx*32-idx*8)
-  |  addi.w CARG4, r0, LJ_TSTR
+  |  l12i CARG4, LJ_TSTR
   |  settp STR:RC, CARG4		// Tagged key to look for.
   |3:  // Rearranged logic, because we expect _not_ to find the key.
   |  ld.d TMP0, NODE:TMP2->key
@@ -1218,7 +1218,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  mv CARG1, TISNIL
   |  beqz TMP1, ->fff_restv		// End of traversal: return nil.
   |  ld.d CFUNC:RB, FRAME_FUNC(BASE)
-  |  addi.w RC, r0, 2*8
+  |  l12i RC, 2*8
   |  cleartp CFUNC:RB
   |  b ->fff_fallback			// Invalid key.
   |
@@ -1441,7 +1441,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.if resume
   |  addi.d TMP3, TMP3, -8
   |  mov_false TMP1
-  |  addi.w RD, r0, (2+1)*8
+  |  l12i RD, (2+1)*8
   |  ld.d TMP0, 0(TMP3)
   |  st.d TMP3, L:RA->top		// Remove error from coroutine stack.
   |  st.d TMP0, 0(BASE)			// Copy error message.
@@ -1466,7 +1466,7 @@ static void build_subroutines(BuildCtx *ctx)
   |.ffunc coroutine_yield
   |  ld.d TMP0, L->cframe
   |  add.d TMP1, BASE, NARGS8:RC
-  |  addi.w CRET1, r0, LUA_YIELD
+  |  l12i CRET1, LUA_YIELD
   |  st.d BASE, L->base
   |  andi TMP0, TMP0, CFRAME_RESUME
   |  st.d TMP1, L->top
@@ -1718,7 +1718,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  gettp TMP1, CARG1
   |  blt TMP0, r0, ->fff_fallback
   |  cleartp STR:CARG1, CARG1
-  |  addi.w CARG4, r0, -1
+  |  l12i CARG4, -1
   |  beqz TMP0, >1
   |  slli.w CARG4, CARG3, 0
   |  checkint CARG3, ->fff_fallback
@@ -2617,7 +2617,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |// Either or both types are not numbers.
     |.if FFI
     |  // Check if RA or RD is a cdata.
-    |  addi.w TMP0, r0, LJ_TCDATA
+    |  l12i TMP0, LJ_TCDATA
     |  beq CARG3, TMP0, ->vmeta_equal_cd
     |  beq CARG4, TMP0, ->vmeta_equal_cd
     |.endif
@@ -2649,13 +2649,13 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
       |  beqz TAB:TMP3, <1		// No metatable?
       |  ld.bu TMP3, TAB:TMP3->nomm
       |  andi TMP3, TMP3, 1<<MM_eq
-      |  addi.w TMP0, r0, 0		// ne = 0
+      |  l12i TMP0, 0		// ne = 0
       |  bnez TMP3, <1			// Or 'no __eq' flag set?
     } else {
       |  beqz TAB:TMP3,->BC_ISEQV_Z	// No metatable?
       |  ld.bu TMP3, TAB:TMP3->nomm
       |  andi TMP3, TMP3, 1<<MM_eq
-      |  addi.w TMP0, r0, 1		// ne = 1
+      |  l12i TMP0, 1			// ne = 1
       |  bnez TMP3, ->BC_ISEQV_Z	// Or 'no __eq' flag set?
     }
     |  b ->vmeta_equal			// Handle __eq metamethod.
@@ -2672,9 +2672,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d CARG2, -8(RD)		// KBASE-8-str_const*8
     |.if FFI
     |  gettp CARG3, CARG1
-    |  addi.w TMP1, r0, LJ_TCDATA
+    |  l12i TMP1, LJ_TCDATA
     |.endif
-    |  addi.w TMP0, r0, LJ_TSTR
+    |  l12i TMP0, LJ_TSTR
     |  decode_BC4b TMP2
     |  settp CARG2, TMP0
     |.if FFI
@@ -2755,12 +2755,12 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |
     |.if FFI
     |7:	// RA not int, not number
-    |  addi.w TMP0, r0, LJ_TCDATA
+    |  l12i TMP0, LJ_TCDATA
     |  bne CARG3, TMP0, <2
     |  b ->vmeta_equal_cd
     |
     |8:	// RD not int, not number
-    |  addi.w TMP0, r0, LJ_TCDATA
+    |  l12i TMP0, LJ_TCDATA
     |  bne CARG4, TMP0, <2
     |  b ->vmeta_equal_cd
     |.endif
@@ -2778,7 +2778,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  addi.d PC, PC, 4
     |  xor TMP0, TMP1, TMP0		// TMP0=0 A=D; TMP0~=0 A~=D
     |.if FFI
-    |  addi.w TMP3, r0, LJ_TCDATA
+    |  l12i TMP3, LJ_TCDATA
     |  beq TMP1, TMP3, ->vmeta_equal_cd
     |.endif
     |  decode_BC4b TMP2
@@ -3080,7 +3080,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_KSTR:
     |  // RA = dst*8, RD = str_const*8 (~)
     |  sub.d TMP1, KBASE, RD
-    |  addi.w TMP2, r0, LJ_TSTR
+    |  l12i TMP2, LJ_TSTR
     |  ld.d TMP0, -8(TMP1)		// KBASE-8-str_const*8
     |  add.d RA, BASE, RA
     |  settp TMP0, TMP2
@@ -3092,7 +3092,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  // RA = dst*8, RD = cdata_const*8 (~)
     |  sub.d TMP1, KBASE, RD
     |  ld.d TMP0, -8(TMP1)		// KBASE-8-cdata_const*8
-    |  addi.w TMP2, r0, LJ_TCDATA
+    |  l12i TMP2, LJ_TCDATA
     |  add.d RA, BASE, RA
     |  settp TMP0, TMP2
     |  st.d TMP0, 0(RA)
@@ -4297,7 +4297,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
 
   case BC_IFUNCV:
     |  // BASE = new base, RA = BASE+framesize*8, RB = LFUNC, RC = nargs*8
-    |  addi.w TMP0, r0, LJ_TFUNC
+    |  l12i TMP0, LJ_TFUNC
     |  add.d TMP1, BASE, RC
     |  ld.d TMP2, L->maxstack
     |  settp LFUNC:RB, TMP0
@@ -4344,7 +4344,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d RC, BASE, NARGS8:RC
     |  st.d BASE, L->base		// base of currently excuting function
     |  st.d RC, L->top
-    |  li_vmstate C			// addi.w TMP0, r0, ~LJ_VMST_C
+    |  li_vmstate C			// l12i TMP0, ~LJ_VMST_C
     if (op == BC_FUNCCW) {
       |  ld.d CARG2, CFUNC:RB->f
     }
