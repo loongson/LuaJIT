@@ -63,8 +63,8 @@ static void asm_exitstub_setup(ASMState *as)
     *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20(target>>12);
   }
   *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I12(4);
-  if (checki12(as->T->traceno)) {
-    *--mxp = LOONGI_ADDI_D | LOONGF_D(RID_TMP) | RID_ZERO | LOONGF_I12(as->T->traceno);
+  if (checku12(as->T->traceno)) {
+    *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | RID_ZERO | LOONGF_I12(as->T->traceno);
   } else {
     *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I12(as->T->traceno);
     *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20(as->T->traceno>>12);
