@@ -50,18 +50,9 @@ static void asm_exitstub_setup(ASMState *as)
 {
   MCode *mxp = as->mctop;
   /* st.w TMP, sp, 0; li TMP, traceno; st.w TMP, sp, 4; jirl ->vm_exit_handler;*/
-  mxp--;
-  ptrdiff_t delta = ((uintptr_t)(void *)lj_vm_exit_handler - (uintptr_t)mxp)>>2;
-  if (LOONGF_S_OK(delta, 26)) {
-    *mxp = LOONGI_B | LOONGF_I26(delta);
-  } else {
-    *mxp = LOONGI_JIRL | LOONGF_D(RID_R0) | LOONGF_J(RID_TMP) | LOONGF_I16(0);
-    uintptr_t target = (uintptr_t)(void *)lj_vm_exit_handler;
-    *--mxp = LOONGI_LU52I_D | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I12(target>>52);
-    *--mxp = LOONGI_LU32I_D | LOONGF_D(RID_TMP) | LOONGF_I20(target>>32);
-    *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I12(target);
-    *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20(target>>12);
-  }
+  MCode *target = (MCode *)(void *)lj_vm_exit_handler;
+  ptrdiff_t delta = target - mxp + 1;
+  *--mxp = LOONGI_BL | LOONGF_I26(delta);
   *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I12(4);
   if (checku12(as->T->traceno)) {
     *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | RID_ZERO | LOONGF_I12(as->T->traceno);
