@@ -46,56 +46,60 @@ static Reg ra_alloc2(ASMState *as, IRIns *ir, RegSet allow)
 /* -- Guard handling ------------------------------------------------------ */
 
 /* Setup exit stub after the end of each trace. */
-static void asm_exitstub_setup(ASMState *as)
+static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
 {
-  MCode *mxp = as->mctop;
-  /* st.w TMP, sp, 0; li TMP, traceno; st.w TMP, sp, 4; jirl ->vm_exit_handler;*/
+  MCLabel trampoline_ptr = as->mctop;
+  MCode *mxp = as->mctop - nexits;
+  if (mxp - (nexits + 5 + MCLIM_REDZONE) < as->mclim)
+    asm_mclimit(as);
+  /* st.d ra, sp, 0; li TMP, traceno; st.w TMP, sp, 8; jirl ->vm_exit_handler;*/
   MCode *target = (MCode *)(void *)lj_vm_exit_handler;
   ptrdiff_t delta = target - mxp + 1;
   *--mxp = LOONGI_BL | LOONGF_I26(delta);
-  *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I12(4);
-  if (checku12(as->T->traceno)) {
-    *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | RID_ZERO | LOONGF_I12(as->T->traceno);
-  } else {
-    *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I12(as->T->traceno);
-    *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20(as->T->traceno>>12);
+  *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I12(8);
+  *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I12(as->T->traceno);
+  *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20(as->T->traceno>>12);
+  *--mxp = LOONGI_ST_D | LOONGF_D(RID_RA) | LOONGF_J(RID_SP) | LOONGF_I12(0);
+  while (trampoline_ptr > as->mctop - nexits) {
+    delta = mxp - trampoline_ptr + 1;
+    *--trampoline_ptr = LOONGI_BL | LOONGF_I26(delta);
   }
-  *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I12(0);
   as->mctop = mxp;
 }
 
-/* Keep this in-sync with exitstub_trace_addr(). */
-#define asm_exitstub_addr(as)	((as)->mctop)
+static MCode *asm_exitstub_addr(ASMState *as, ExitNo exitno)
+{
+  /* Keep this in-sync with exitstub_trace_addr(). */
+  return as->mctop + exitno + 5;
+}
 
 /* Emit conditional branch to exit for guard. */
 static void asm_guard(ASMState *as, LOONGIns loongi, Reg rj, Reg rd)
 {
-  MCode *target = asm_exitstub_addr(as);
+  MCode *target = asm_exitstub_addr(as, as->snapno);
   MCode *p = as->mcp;
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->invmcp = NULL;
     as->loopinv = 1;
-    as->mcp = p;
+    *p = LOONGI_B | LOONGF_I26(target - p);
     loongi = loongi ^ ((loongi>>28) == 4 ? 0x00000100u : 0x04000000u);  /* Invert cond. BEQ BNE BGE BLZ*/
     target = p - 1;  /* Patch target later in asm_loop_fixup. */
   }
   emit_branch(as, loongi, rj, rd, target);
-  emit_djs12(as, LOONGI_ADDI_D, RID_TMP, RID_ZERO, as->snapno);
 }
 
 static void asm_guard21(ASMState *as, LOONGIns loongi, Reg rj)
 {
-  MCode *target = asm_exitstub_addr(as);
+  MCode *target = asm_exitstub_addr(as, as->snapno);
   MCode *p = as->mcp;
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->invmcp = NULL;
     as->loopinv = 1;
-    as->mcp = p;
+    *p = LOONGI_B | LOONGF_I26(target - p);
     loongi = loongi ^ ((loongi>>28) == 4 ? 0x00000100u : 0x04000000u);  /* Invert cond. BCEQZ BCNEZ*/
     target = p - 1;  /* Patch target later in asm_loop_fixup. */
   }
   emit_branch21(as, loongi, rj, target);
-  emit_djs12(as, LOONGI_ADDI_D, RID_TMP, RID_ZERO, as->snapno);
 }
 
 /* -- Operand fusion ------------------------------------------------------ */
@@ -769,11 +773,10 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
 
   /* Type and value comparison. */
   if (merge == IR_EQ) {  /* Must match asm_guard(). */
-    l_end = asm_exitstub_addr(as);
+    l_end = asm_exitstub_addr(as, as->snapno);
   }
   if (irt_isnum(kt)) {
     emit_branch21(as, LOONGI_BCNEZ, 0, l_end);
-    emit_loadi(as, RID_TMP, as->snapno);
     emit_djk(as, LOONGI_FCMP_CEQ_D, 0, tmpnum, key);
     emit_branch(as, LOONGI_BEQ, tmp1, RID_ZERO, l_next);
     emit_djs12(as, LOONGI_SLTUI, tmp1, tmp1, LJ_TISNUM);
@@ -781,7 +784,6 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
     emit_dj(as, LOONGI_MOVGR2FR_D, tmpnum, tmp1);
   } else {
     emit_branch(as, LOONGI_BEQ, tmp1, cmp64, l_end);
-    emit_loadi(as, RID_TMP, as->snapno);
   }
   emit_djs12(as, LOONGI_LD_D, tmp1, dest, offsetof(Node, key.u64));
   *l_loop = LOONGI_BNE | LOONGF_J(tmp1) | LOONGF_D(RID_ZERO) | LOONGF_I16(as->mcp-l_loop);
@@ -1784,8 +1786,6 @@ static void asm_loop_fixup(ASMState *as)
     } else {  /* BEQ BNE BLE BGE BLTU BGEU*/
       p[-2] |= LOONGF_I16(delta);
     }
-    if (p[-1] == 0)
-      p[-1] = LOONGI_NOP;
   } else {
     /* b */
     ptrdiff_t delta = target - (p - 1);
@@ -1863,6 +1863,7 @@ static void asm_tail_prep(ASMState *as)
   } else {
     as->mcp = p-1;  /* Leave room for stack pointer adjustment. */
     as->invmcp = NULL;
+    p[-1] = LOONGI_NOP;
   }
   *p = LOONGI_NOP;  /* Prevent load/store merging. */
 }
@@ -1908,7 +1909,7 @@ static void asm_sparejump_setup(ASMState *as)
 static void asm_setup_target(ASMState *as)
 {
   asm_sparejump_setup(as);
-  asm_exitstub_setup(as);
+  asm_exitstub_setup(as, as->T->nsnap + (as->parent ? 1 : 0));
 }
 
 /* -- Trace patching ------------------------------------------------------ */
@@ -1919,84 +1920,50 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
   MCode *p = T->mcode;
   MCode *pe = (MCode *)((char *)p + T->szmcode);
   MCode *px = exitstub_trace_addr(T, exitno);
-  MCode *cstart = NULL, *cstop = NULL;
+  MCode *cstart = NULL;
   MCode *mcarea = lj_mcode_patch(J, p, 0);
-  MCode exitload = LOONGI_ADDI_D | LOONGF_D(RID_TMP) | LOONGF_J(RID_ZERO) | LOONGF_I12(exitno);
   uint32_t maskbcop = 0xfc000000u;
   uint32_t maskfbcop = 0xfc000100u;
 
   for (; p < pe; p++) {
-    if (*p == exitload) {
-      /* Look for exitstub branch, replace with branch to target. */
-      ptrdiff_t delta = target - (p + 1);
-      MCode ins = p[1];
-      if (((ins ^ ((px-p-1)<<10)) & 0x3fffc00u) == 0 &&
-          ((ins & maskbcop) == LOONGI_BEQ || (ins & maskbcop) == LOONGI_BNE ||
-           (ins & maskbcop) == LOONGI_BLT || (ins & maskbcop) == LOONGI_BGE )) {
-        /* Patch beq/bne/blt/bge, if within range. */
-        if (p[-1] == LOONG_NOPATCH_GC_CHECK) {
-	  /* nothing */
-	  continue;
-        } else if (LOONGF_S_OK(delta, 16)) {
-          p[1] = (ins & 0xfc0003ffu) | LOONGF_I16(delta);
-          *p = LOONGI_NOP;
-        } else if (LOONGF_S_OK(delta, 26)) {
-	  Reg rj = (ins>>5) & 0x1f;
-	  Reg rd = ins & 0x1f;
-	  switch (ins & maskbcop) {
-          case LOONGI_BEQ:
-            *p = LOONGI_BNE | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
-	    break;
-	  case LOONGI_BNE:
-            *p = LOONGI_BEQ | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
-	    break;
-	  case LOONGI_BLT:
-            *p = LOONGI_BGE | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
-	    break;
-	  case LOONGI_BGE:
-            *p = LOONGI_BLT | LOONGF_D(rd) | LOONGF_J(rj) |  LOONGF_I16(2);
-	    break;
-	  }
-          p[1] = LOONGI_B | LOONGF_I26(delta);
-	} else {
-          lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
-	}
-	cstop = p + 2;
-        if (!cstart) cstart = p;
-      } else if (((ins ^ ((((px-p-1)&0xffff)<<10) + (((px-p-1)>>10)&0x1f))) & 0x3fffc1f) == 0 &&
-                 ((ins & maskfbcop) == LOONGI_BCEQZ || (ins & maskfbcop) == LOONGI_BCNEZ)) {
-        if (LOONGF_S_OK(delta, 21)) {
-          p[1] = (ins & 0xfc0003e0u) | LOONGF_I21(delta);
-          *p = LOONGI_NOP;
-        } else if (LOONGF_S_OK(delta, 26)) {
-	  Reg cj = (ins>>5) & 0x7;
-	  switch (ins & maskfbcop) {
-          case LOONGI_BCEQZ:
-            *p = LOONGI_BCNEZ | LOONGF_J(cj) |  LOONGF_I21(2);
-	    break;
-	  case LOONGI_BCNEZ:
-            *p = LOONGI_BCEQZ | LOONGF_J(cj) |  LOONGF_I21(2);
-	    break;
-	  }
-          p[1] = LOONGI_B | LOONGF_I26(delta);
-        } else {
-	  lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
-	}
-	cstop = p + 2;
-        if (!cstart) cstart = p;
-      } else if (p+3 == pe) {
-        if (p[2] == LOONGI_NOP) {
-          ptrdiff_t delta = target - &p[2];
-          lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
-          p[2] = LOONGI_B | LOONGF_I26(delta);
-          *p = LOONGI_NOP;
-	  cstop = p + 3;
-          if (!cstart) cstart = p + 2;
-        }
+    /* Look for exitstub branch, replace with branch to target. */
+    ptrdiff_t delta = target - p;
+    MCode ins = p[0];
+    if (((ins ^ ((px-p)<<10)) & 0x3fffc00u) == 0 &&
+        ((ins & maskbcop) == LOONGI_BEQ || (ins & maskbcop) == LOONGI_BNE ||
+         (ins & maskbcop) == LOONGI_BLT || (ins & maskbcop) == LOONGI_BGE )) {
+      /* Patch beq/bne/blt/bge, if within range. */
+      if (p[-1] == LOONG_NOPATCH_GC_CHECK) {
+        /* nothing */
+        continue;
+      } else if (LOONGF_S_OK(delta, 16)) {
+        *p = (ins & 0xfc0003ffu) | LOONGF_I16(delta);
+      } else if (LOONGF_S_OK(target - px, 26)) {
+        *px = LOONGI_B | LOONGF_I26(target - px);
+      } else {
+        lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
+      }
+      if (!cstart) cstart = p;
+    } else if (((ins ^ ((((px-p)&0xffff)<<10) + (((px-p)>>10)&0x1f))) & 0x3fffc1f) == 0 &&
+               ((ins & maskfbcop) == LOONGI_BCEQZ || (ins & maskfbcop) == LOONGI_BCNEZ)) {
+      if (LOONGF_S_OK(delta, 21)) {
+        *p = (ins & 0xfc0003e0u) | LOONGF_I21(delta);
+      } else if (LOONGF_S_OK(target - px, 26)) {
+        *px = LOONGI_B | LOONGF_I26(target - px);
+      } else {
+        lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
+      }
+      if (!cstart) cstart = p;
+    } else if (p+2 == pe) {
+      if (p[1] == LOONGI_NOP) {
+        ptrdiff_t delta = target - &p[1];
+        lj_assertJ(LOONGF_S_OK(delta, 26), "branch target out of range");
+        p[1] = LOONGI_B | LOONGF_I26(delta);
+        if (!cstart) cstart = p + 1;
       }
     }
   }
 
-  if (cstart) lj_mcode_sync(cstart, cstop);
+  if (cstart) lj_mcode_sync(cstart, px+1);
   lj_mcode_patch(J, mcarea, 1);
 }

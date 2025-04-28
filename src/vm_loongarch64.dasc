@@ -2122,7 +2122,6 @@ static void build_subroutines(BuildCtx *ctx)
   |
   |->vm_exit_handler:
   |.if JIT
-  |  ld.w ra, 4(sp)			// li TMP, traceno
   |  addi.d sp, sp, -(32*8+32*8)
   |  savex_ 0, 2
   |  savex_ 4, 5
@@ -2146,12 +2145,16 @@ static void build_subroutines(BuildCtx *ctx)
   |  st.d TMP2, 32*8+3*8(sp)		// Store sp in RID_SP
   |  li_vmstate EXIT
   |  add32i_d DISPATCH, GL, GG_G2DISP
-  |  ld.w TMP1, 0(TMP2)			// Load exit number.
+  |  ld.d TMP1, 0(TMP2)			// Load trampoline pc
+  |  ld.w TMP3, 8(TMP2)			// Load trace number
   |  st_vmstate
   |  ld.d L, GL->cur_L
   |  ld.d BASE, GL->jit_base
+  |  sub.d TMP1, TMP1, ra
   |  st.d L, GL_J(L)(GL)
-  |  st.w ra, DISPATCH_J(parent)(DISPATCH)	// Store trace number.
+  |  srli.d TMP1, TMP1, 2
+  |  st.w TMP3, DISPATCH_J(parent)(DISPATCH)	// Store trace number.
+  |  addi.d TMP1, TMP1, -1
   |  st.d BASE, L->base
   |  st.w TMP1, DISPATCH_J(exitno)(DISPATCH)	// Store exit number.
   |  addi.d CARG1, GL, GG_G2J
