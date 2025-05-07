@@ -1444,11 +1444,9 @@ static void asm_mulov(ASMState *as, IRIns *ir)
   right = (left >> 8); left &= 255;
   tmp = ra_scratch(as, rset_exclude(rset_exclude(
 			rset_exclude(RSET_GPR, left), right), dest));
-  asm_guard(as, LOONGI_BEQ, tmp, RID_R0);
-  emit_djk(as, LOONGI_XOR, tmp, tmp, RID_TMP);
-  emit_dju5(as, LOONGI_SRAI_W, RID_TMP, dest, 31);
-  emit_djk(as, LOONGI_MULH_W, tmp, left, right);
-  emit_djk(as, LOONGI_MUL_W, dest, left, right);
+  asm_guard(as, LOONGI_BNE, tmp, dest);
+  emit_dju5(as, LOONGI_SLLI_W, dest, tmp, 0);
+  emit_djk(as, LOONGI_MULW_D_W, tmp, left, right);
 }
 
 static void asm_bnot(ASMState *as, IRIns *ir)
