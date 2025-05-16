@@ -1674,18 +1674,18 @@ static void asm_stack_check(ASMState *as, BCReg topslot,
   Reg tmp, pbase = irp ? (ra_hasreg(irp->r) ? irp->r : RID_TMP) : RID_BASE;
   ExitNo oldsnap = as->snapno;
   rset_clear(allow, pbase);
+  as->snapno = exitno;
+  asm_guard(as, LOONGI_BNE, RID_TMP, RID_ZERO);
+  as->snapno = oldsnap;
   if (allow) {
     tmp = rset_pickbot(allow);
     ra_modified(as, tmp);
   } else {
     tmp = RID_RET;
-    emit_djs12(as, LOONGI_LD_D, tmp, RID_SP, 0);  /* Restore tmp1 register. */
+    emit_djs12(as, LOONGI_LD_D, tmp, RID_SP, 0);  /* Restore tmp register. */
   }
-  as->snapno = exitno;
-  asm_guard(as, LOONGI_BNE, tmp, RID_ZERO);
-  as->snapno = oldsnap;
   lj_assertA(checki12(8*topslot), "slot offset %d does not fit in si12", 8*topslot);
-  emit_djs12(as, LOONGI_SLTUI, tmp, RID_TMP, (int32_t)(8*topslot)&0xfff);
+  emit_djs12(as, LOONGI_SLTUI, RID_TMP, RID_TMP, (int32_t)(8*topslot)&0xfff);
   emit_djk(as, LOONGI_SUB_D, RID_TMP, tmp, pbase);
   emit_djs12(as, LOONGI_LD_D, tmp, tmp, offsetof(lua_State, maxstack));
   if (pbase == RID_TMP)
