@@ -355,11 +355,9 @@ static void asm_retf(ASMState *as, IRIns *ir)
   irt_setmark(IR(REF_BASE)->t);  /* Children must not coalesce with BASE reg. */
   emit_setgl(as, base, jit_base);
   emit_addptr(as, base, -8*delta);
-  RegSet allow = rset_exclude(RSET_GPR, base);
-  Reg tmp = ra_scratch(as, allow);
-  rset_clear(allow, tmp);
-  asm_guard(as, LOONGI_BNE, tmp, ra_allock(as, igcptr(pc), allow));
-  emit_djs12(as, LOONGI_LD_D, tmp, base, -8);
+  asm_guard(as, LOONGI_BNE, RID_TMP,
+	    ra_allock(as, igcptr(pc), rset_exclude(RSET_GPR, base)));
+  emit_djs12(as, LOONGI_LD_D, RID_TMP, base, -8);
 }
 
 /* -- Buffer operations --------------------------------------------------- */
@@ -719,7 +717,9 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   int destused = ra_used(ir);
   Reg dest = ra_dest(as, ir, allow);
   Reg tab = ra_alloc1(as, ir->op1, rset_clear(allow, dest));
-  Reg key = RID_NONE, type = RID_NONE, tmpnum = RID_NONE, tmp1, tmp2;
+  Reg key = RID_NONE, type = RID_NONE, tmpnum = RID_NONE, tmp1 = RID_TMP;
+  Reg tmp2 = ra_scratch(as, rset_clear(allow, tab));
+  rset_clear(allow, tmp2);
   Reg cmp64 = RID_NONE;
   IRRef refkey = ir->op2;
   IRIns *irkey = IR(refkey);
@@ -727,11 +727,6 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   IRType1 kt = irkey->t;
   uint32_t khash;
   MCLabel l_end, l_loop, l_next;
-  rset_clear(allow, tab);
-  tmp1 = ra_scratch(as, allow);
-  rset_clear(allow, tmp1);
-  tmp2 = ra_scratch(as, allow);
-  rset_clear(allow, tmp2);
 
   if (irt_isnum(kt)) {
     key = ra_alloc1(as, refkey, RSET_FPR);
@@ -848,7 +843,6 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   Reg node = ra_alloc1(as, ir->op1, RSET_GPR);
   RegSet allow = rset_exclude(RSET_GPR, node);
   Reg idx = node;
-  Reg key = RID_NONE;
   int64_t k;
   lj_assertA(ofs % sizeof(Node) == 0, "unaligned HREFK slot");
   if (bigofs) {
@@ -866,10 +860,8 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
   } else {
     k = ((int64_t)irt_toitype(irkey->t) << 47) | (int64_t)ir_kgc(irkey);
   }
-  key = ra_scratch(as, allow);
-  rset_clear(allow, key);
-  asm_guard(as, LOONGI_BNE, key, ra_allock(as, k, allow));
-  emit_djs12(as, LOONGI_LD_D, key, idx, kofs);
+  asm_guard(as, LOONGI_BNE, RID_TMP, ra_allock(as, k, allow));
+  emit_djs12(as, LOONGI_LD_D, RID_TMP, idx, kofs);
   if (bigofs)
     emit_djk(as, LOONGI_ADD_D, dest, node, ra_allock(as, ofs, allow));
 }
@@ -884,25 +876,22 @@ static void asm_uref(ASMState *as, IRIns *ir)
     MRef *v = &gcref(fn->l.uvptr[(ir->op2 >> 8)])->uv.v;
     emit_lsptr(as, LOONGI_LD_D, dest, v, RSET_GPR);
   } else {
-    Reg tmp = ra_scratch(as, rset_exclude(RSET_GPR, dest));
-    rset_clear(allow, tmp);
     if (guarded)
-      asm_guard(as, ir->o == IR_UREFC ? LOONGI_BEQ : LOONGI_BNE, tmp, RID_ZERO);
+      asm_guard(as, ir->o == IR_UREFC ? LOONGI_BEQ : LOONGI_BNE, RID_TMP, RID_ZERO);
     if (ir->o == IR_UREFC)
       emit_djs12(as, LOONGI_ADDI_D, dest, dest, offsetof(GCupval, tv));
     else
       emit_djs12(as, LOONGI_LD_D, dest, dest, offsetof(GCupval, v));
     if (guarded)
-      emit_djs12(as, LOONGI_LD_BU, tmp, dest, offsetof(GCupval, closed));
+      emit_djs12(as, LOONGI_LD_BU, RID_TMP, dest, offsetof(GCupval, closed));
     if (irref_isk(ir->op1)) {
       GCfunc *fn = ir_kfunc(IR(ir->op1));
       uint64_t k = gcrefu(fn->l.uvptr[(ir->op2 >> 8)]);
       emit_loadu64(as, dest, k);
     } else {
-      Reg r = ra_alloc1(as, ir->op1, allow);
-      rset_clear(allow, r);
-      emit_lso(as, LOONGI_LD_D, dest, r, (int32_t)offsetof(GCfuncL, uvptr) +
-		(int32_t)sizeof(MRef) * (int32_t)(ir->op2 >> 8), allow);
+      emit_lso(as, LOONGI_LD_D, dest, ra_alloc1(as, ir->op1, allow),
+	       (int32_t)offsetof(GCfuncL, uvptr) +
+	       (int32_t)sizeof(MRef) * (int32_t)(ir->op2 >> 8), allow);
     }
   }
 }
@@ -1024,13 +1013,10 @@ static void asm_xstore_(ASMState *as, IRIns *ir, int32_t ofs)
 
 static void asm_ahuvload(ASMState *as, IRIns *ir)
 {
-  Reg dest = RID_NONE, type, idx;
+  Reg dest = RID_NONE, type = RID_TMP, idx;
   RegSet allow = RSET_GPR;
   int32_t ofs = 0;
   IRType1 t = ir->t;
-  type = ra_scratch(as, allow);
-  rset_clear(allow, type);
-
   if (ra_used(ir)) {
     lj_assertA((irt_isnum(ir->t)) || irt_isint(ir->t) || irt_isaddr(ir->t),
 	       "bad load type %d", irt_type(ir->t));
@@ -1045,9 +1031,8 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   if (ir->o == IR_VLOAD) ofs += 8 * ir->op2;
   rset_clear(allow, idx);
   if (irt_isnum(t)) {
-    Reg tmp2 = ra_scratch(as, allow);
-    asm_guard(as, LOONGI_BEQ, tmp2, RID_ZERO);
-    emit_djs12(as, LOONGI_SLTUI, tmp2, type, LJ_TISNUM);
+    asm_guard(as, LOONGI_BEQ, RID_TMP, RID_ZERO);
+    emit_djs12(as, LOONGI_SLTUI, RID_TMP, type, LJ_TISNUM);
   } else {
     asm_guard(as, LOONGI_BNE, type, ra_allock(as, (int32_t)irt_toitype(t), allow));
   }
@@ -1150,33 +1135,26 @@ static void asm_sload(ASMState *as, IRIns *ir)
   rset_clear(allow, base);
 dotypecheck:
   if ((ir->op2 & IRSLOAD_TYPECHECK)) {
-    if (dest < RID_MAX_GPR) {
-      type = dest;
-    } else {
-      type = ra_scratch(as, allow);
-    }
-    rset_clear(allow, type);
-    Reg tmp1 = ra_scratch(as, allow);
-    rset_clear(allow, tmp1);
+    type = dest < RID_MAX_GPR ? dest : RID_TMP;
     if (irt_ispri(t)) {
       asm_guard(as, LOONGI_BNE, type,
 		ra_allock(as, ~((int64_t)~irt_toitype(t) << 47) , allow));
     } else if ((ir->op2 & IRSLOAD_KEYINDEX)) {
-      asm_guard(as, LOONGI_BNE, tmp1,
+      asm_guard(as, LOONGI_BNE, RID_TMP,
                ra_allock(as, (int32_t)LJ_KEYINDEX, allow));
-      emit_dju6(as, LOONGI_SRAI_D, tmp1, type, 32);
+      emit_dju6(as, LOONGI_SRAI_D, RID_TMP, type, 32);
     } else {
       if (irt_isnum(t)) {
-        asm_guard(as, LOONGI_BEQ, tmp1, RID_ZERO);
-        emit_djs12(as, LOONGI_SLTUI, tmp1, tmp1, LJ_TISNUM);
+        asm_guard(as, LOONGI_BEQ, RID_TMP, RID_ZERO);
+        emit_djs12(as, LOONGI_SLTUI, RID_TMP, RID_TMP, LJ_TISNUM);
 	if (ra_hasreg(dest)) {
 	  emit_lso(as, LOONGI_FLD_D, dest, base, ofs, allow);
 	}
       } else {
-	asm_guard(as, LOONGI_BNE, tmp1,
+	asm_guard(as, LOONGI_BNE, RID_TMP,
 		  ra_allock(as, (int32_t)irt_toitype(t), allow));
       }
-      emit_dju6(as, LOONGI_SRAI_D, tmp1, type, 47);
+      emit_dju6(as, LOONGI_SRAI_D, RID_TMP, type, 47);
     }
     emit_lso(as, LOONGI_LD_D, type, base, ofs, allow);
   } else if (ra_hasreg(dest)) {
@@ -1391,20 +1369,18 @@ static void asm_neg(ASMState *as, IRIns *ir)
 static void asm_arithov(ASMState *as, IRIns *ir)
 {
   RegSet allow = RSET_GPR;
-  Reg right, left, tmp, tmp2, dest = ra_dest(as, ir, allow);
+  Reg right, left, tmp, dest = ra_dest(as, ir, allow);
   rset_clear(allow, dest);
   lj_assertA(!irt_is64(ir->t), "bad usage");
-  tmp2 = ra_scratch(as, allow);
-  rset_clear(allow, tmp2);
   if (irref_isk(ir->op2)) {
     int k = IR(ir->op2)->i;
     if (ir->o == IR_SUBOV) k = (int)(~(unsigned int)k+1u);
     if (LOONGF_S_OK(k, 12)) {  /* (dest < left) == (k >= 0 ? 1 : 0) */
       left = ra_alloc1(as, ir->op1, allow);
-      asm_guard(as, k >= 0 ? LOONGI_BNE : LOONGI_BEQ, tmp2, RID_ZERO);
-      emit_djk(as, LOONGI_SLT, tmp2, dest, dest == left ? tmp2 : left);
+      asm_guard(as, k >= 0 ? LOONGI_BNE : LOONGI_BEQ, RID_TMP, RID_ZERO);
+      emit_djk(as, LOONGI_SLT, RID_TMP, dest, dest == left ? RID_TMP : left);
       emit_djs12(as, LOONGI_ADDI_D, dest, left, k);
-      if (dest == left) emit_move(as, tmp2, left);
+      if (dest == left) emit_move(as, RID_TMP, left);
       return;
     }
   }
@@ -1413,8 +1389,8 @@ static void asm_arithov(ASMState *as, IRIns *ir)
   rset_clear(allow, right);
   rset_clear(allow, left);
   tmp = ra_scratch(as, allow);
-  asm_guard(as, LOONGI_BLT, tmp2, RID_ZERO);
-  emit_djk(as, LOONGI_AND, tmp2, RID_TMP, tmp);
+  asm_guard(as, LOONGI_BLT, RID_TMP, RID_ZERO);
+  emit_djk(as, LOONGI_AND, RID_TMP, RID_TMP, tmp);
   if (ir->o == IR_ADDOV) {  /* ((dest^left) & (dest^right)) < 0 */
     emit_djk(as, LOONGI_XOR, RID_TMP, dest, dest == right ? RID_TMP : right);
   } else {  /* ((dest^left) & (dest^~right)) < 0 */
@@ -1433,13 +1409,11 @@ static void asm_arithov(ASMState *as, IRIns *ir)
 static void asm_mulov(ASMState *as, IRIns *ir)
 {
   Reg dest = ra_dest(as, ir, RSET_GPR);
-  Reg tmp, right, left = ra_alloc2(as, ir, RSET_GPR);
+  Reg right, left = ra_alloc2(as, ir, RSET_GPR);
   right = (left >> 8); left &= 255;
-  tmp = ra_scratch(as, rset_exclude(rset_exclude(
-			rset_exclude(RSET_GPR, left), right), dest));
-  asm_guard(as, LOONGI_BNE, tmp, dest);
-  emit_dju5(as, LOONGI_SLLI_W, dest, tmp, 0);
-  emit_djk(as, LOONGI_MULW_D_W, tmp, left, right);
+  asm_guard(as, LOONGI_BNE, RID_TMP, dest);
+  emit_dju5(as, LOONGI_SLLI_W, dest, RID_TMP, 0);
+  emit_djk(as, LOONGI_MULW_D_W, RID_TMP, left, right);
 }
 
 static void asm_bnot(ASMState *as, IRIns *ir)
@@ -1582,7 +1556,7 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   /*           00 01 10 11  100 101 110 111  */
   IROp op = ir->o;
   RegSet allow = RSET_GPR;
-  Reg tmp, right, left = ra_alloc1(as, ir->op1, allow);
+  Reg right, left = ra_alloc1(as, ir->op1, allow);
   rset_clear(allow, left);
   if (op == IR_ABC) op = IR_UGT;
   if ((op&4) == 0 && irref_isk(ir->op2) && get_kval(as, ir->op2) == 0) {
@@ -1595,21 +1569,19 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     }
     return;
   }
-  tmp = ra_scratch(as, allow);
-  rset_clear(allow, tmp);
   if (irref_isk(ir->op2)) {
     intptr_t k = get_kval(as, ir->op2);
     if ((op&2)) k++;
     if (checki12(k)) {
-      asm_guard(as, (op&1) ? LOONGI_BNE : LOONGI_BEQ, tmp, RID_ZERO);
-      emit_djs12(as, (op&4) ? LOONGI_SLTUI : LOONGI_SLTI, tmp, left, k);
+      asm_guard(as, (op&1) ? LOONGI_BNE : LOONGI_BEQ, RID_TMP, RID_ZERO);
+      emit_djs12(as, (op&4) ? LOONGI_SLTUI : LOONGI_SLTI, RID_TMP, left, k);
       return;
     }
   }
   right = ra_alloc1(as, ir->op2, allow);
-  asm_guard(as, ((op^(op>>1))&1) ? LOONGI_BNE : LOONGI_BEQ, tmp, RID_ZERO);
+  asm_guard(as, ((op^(op>>1))&1) ? LOONGI_BNE : LOONGI_BEQ, RID_TMP, RID_ZERO);
   emit_djk(as, (op&4) ? LOONGI_SLTU : LOONGI_SLT,
-           tmp, (op&2) ? right : left, (op&2) ? left : right);
+           RID_TMP, (op&2) ? right : left, (op&2) ? left : right);
 }
 
 static void asm_comp(ASMState *as, IRIns *ir)
@@ -1657,10 +1629,9 @@ static void asm_hiop(ASMState *as, IRIns *ir)
 static void asm_prof(ASMState *as, IRIns *ir)
 {
   UNUSED(ir);
-  Reg tmp = ra_scratch(as, RSET_GPR);
-  asm_guard(as, LOONGI_BNE, tmp, RID_ZERO);
-  emit_dju12(as, LOONGI_ANDI, tmp, tmp, HOOK_PROFILE);
-  emit_lsglptr2(as, LOONGI_LD_BU, tmp,
+  asm_guard(as, LOONGI_BNE, RID_TMP, RID_ZERO);
+  emit_dju12(as, LOONGI_ANDI, RID_TMP, RID_TMP, HOOK_PROFILE);
+  emit_lsglptr2(as, LOONGI_LD_BU, RID_TMP,
 	       (int32_t)offsetof(global_State, hookmask));
 }
 
