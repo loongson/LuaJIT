@@ -2383,8 +2383,9 @@ static void build_subroutines(BuildCtx *ctx)
   |.if FFI
   |.type CTSTATE, CTState, PC
   |  saveregs
-  |  ld.d CTSTATE, GL:r17->ctype_state
-  |  add32i_d DISPATCH, r17, GG_G2DISP
+  |  or GL, r17, r0
+  |  ld.d CTSTATE, GL->ctype_state
+  |  add32i_d DISPATCH, GL, GG_G2DISP
   |  st.w r19, CTSTATE->cb.slot
   |  st.d CARG1, CTSTATE->cb.gpr[0]
   |  fst.d FARG1, CTSTATE->cb.fpr[0]
