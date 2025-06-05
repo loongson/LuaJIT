@@ -3865,7 +3865,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  add.d TMP0, PC, TMP0
     |  ld.d CARG2, -16(RA)
     |  ld.d CARG3, -8(RA)
-    |  addu16i.d PC, TMP0, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  checkfunc CFUNC:CARG1, >5
     |  gettp CARG2, CARG2
     |  addi.d CARG2, CARG2, -LJ_TTAB
@@ -3877,6 +3876,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lu12i.w TMP1, 0xfffe7		// LJ_KEYINDEX >> 12
     |  bnez TMP3, >5
     |  ori TMP1, TMP1, (LJ_KEYINDEX & 0xfff)
+    |  addu16i.d PC, TMP0, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |  slli.d TMP1, TMP1, 32
     |  st.d TMP1, -8(RA)
     |1:
@@ -3885,6 +3885,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  l12i TMP3, BC_JMP
     |  l12i TMP1, BC_ITERC
     |  st.b TMP3, -4+OFS_OP(PC)
+    |  addu16i.d PC, TMP0, -(BCBIAS_J*4 >> 16)	// jump - 0x8000<<2
     |.if JIT
     |  ld.b TMP0, OFS_OP(PC)
     |  l12i TMP3, BC_ITERN
