@@ -2875,7 +2875,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ld.d TMP0, 0(RB)
     |  addu16i.d TMP1, r0, 0x8000
     |  gettp CARG3, TMP0
-    |  slli.w TMP0, TMP0, 0
     |  bne CARG3, TISNUM, >1
     |  beq TMP0, TMP1, ->vmeta_unm      // Meta handler deals with -2^31.
     |  sub.w TMP0, r0, TMP0
