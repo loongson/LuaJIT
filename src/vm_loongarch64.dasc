@@ -39,6 +39,8 @@
 |
 |.define JGL,		r22	// On-trace: global_State.
 |
+|.define fp,		r22
+|
 |// Constants for type-comparisons, stores and conversions. C callee-save.
 |.define TISNIL,	r31
 |.define TISNUM,	r29
@@ -121,7 +123,7 @@
 |.macro saveregs
 |  addi.d sp, sp, -CFRAME_SPACE
 |  st.d ra, SAVE_GPR_+10*8(sp)
-|  st.d r22, SAVE_GPR_+9*8(sp)
+|  st.d fp, SAVE_GPR_+9*8(sp)
 |  st.d r31, SAVE_GPR_+8*8(sp)
 |  fst.d f31, SAVE_FPR_+7*8(sp)
 |  st.d r30, SAVE_GPR_+7*8(sp)
@@ -143,7 +145,7 @@
 |
 |.macro restoreregs_ret
 |  ld.d ra, SAVE_GPR_+10*8(sp)
-|  ld.d r22, SAVE_GPR_+9*8(sp)
+|  ld.d fp, SAVE_GPR_+9*8(sp)
 |  ld.d r31, SAVE_GPR_+8*8(sp)
 |  ld.d r30, SAVE_GPR_+7*8(sp)
 |  fld.d f31, SAVE_FPR_+7*8(sp)
@@ -2452,9 +2454,9 @@ static void build_subroutines(BuildCtx *ctx)
   |  mv TMP2, sp
   |  sub.d sp, sp, TMP1
   |  st.d ra, -8(TMP2)
-  |  st.d r23, -16(TMP2)
+  |  st.d fp, -16(TMP2)
   |  st.d CCSTATE, -24(TMP2)
-  |  mv r23, TMP2
+  |  mv fp, TMP2
   |  addi.d TMP1, CCSTATE, offsetof(CCallState, stack)
   |  mv TMP2, sp
   |  add.d TMP3, TMP1, CARG2
@@ -2486,15 +2488,15 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d CARG8, CCSTATE->gpr[7]
   |  ld.d CARG1, CCSTATE->gpr[0]         // Do this last, since CCSTATE is CARG1.
   |  jirl r1, TMP3, 0
-  |  ld.d CCSTATE:TMP1, -24(r23)
-  |  ld.d TMP2, -16(r23)
-  |  ld.d ra, -8(r23)
+  |  ld.d CCSTATE:TMP1, -24(fp)
+  |  ld.d TMP2, -16(fp)
+  |  ld.d ra, -8(fp)
   |  st.d CRET1, CCSTATE:TMP1->gpr[0]
   |  st.d CRET2, CCSTATE:TMP1->gpr[1]
   |  fst.d FRET1, CCSTATE:TMP1->fpr[0]
   |  fst.d FRET2, CCSTATE:TMP1->fpr[1]
-  |  mv sp, r23
-  |  mv r23, TMP2
+  |  mv sp, fp
+  |  mv fp, TMP2
   |  ret
   |.endif
   |// Note: vm_ffi_call must be the last function in this object file!
@@ -4408,7 +4410,7 @@ static void emit_asm_debug(BuildCtx *ctx)
 	"\t.byte 0x1\n"
 	"\t.string \"\"\n"
 	"\t.uleb128 0x1\n"
-	"\t.sleb128 -4\n"
+	"\t.sleb128 -8\n"
 	"\t.byte 1\n"				/* Return address is in ra. */
 	"\t.byte 0xc\n\t.uleb128 3\n\t.uleb128 0\n"	/* def_cfa sp 0 */
 	"\t.align 3\n"
@@ -4421,98 +4423,110 @@ static void emit_asm_debug(BuildCtx *ctx)
 	"\t.8byte .Lbegin\n"
 	"\t.8byte %d\n"
 	"\t.byte 0xe\n\t.uleb128 %d\n"
-	"\t.byte 0x81\n\t.uleb128 2*5\n"	/* offset ra*/
-	"\t.byte 0x96\n\t.uleb128 2*6\n",	/* offset fp */
+	"\t.byte 0x81\n\t.uleb128 5\n"	/* offset ra*/
+	"\t.byte 0x96\n\t.uleb128 6\n",	/* offset fp */
 	fcofs, CFRAME_SIZE);
     for (i = 31; i >= 23; i--)	/* offset r31-r23 */
-      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+i, 2*(31-i+7));
+      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+i, 31-i+7);
     for (i = 31; i >= 24; i--)	/* offset f31-f24 */
-      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+32+i, 2*(31-i+16));
+      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+32+i, 31-i+16);
     fprintf(ctx->fp,
 	"\t.align 3\n"
 	".LEFDE0:\n\n");
 #if LJ_HASFFI
     fprintf(ctx->fp,
+	".Lframe1:\n"
+	"\t.4byte .LECIE1-.LSCIE1\n"
+	".LSCIE1:\n"
+	"\t.4byte 0xffffffff\n"
+	"\t.byte 0x1\n"
+	"\t.string \"\"\n"
+	"\t.uleb128 0x1\n"
+	"\t.sleb128 -8\n"
+	"\t.byte 1\n"				/* Return address is in ra. */
+	"\t.byte 0xc\n\t.uleb128 22\n\t.uleb128 0\n"	/* def_cfa fp 0 */
+	"\t.align 3\n"
+	".LECIE1:\n\n");
+    fprintf(ctx->fp,
 	".LSFDE1:\n"
 	"\t.4byte .LEFDE1-.LASFDE1\n"
 	".LASFDE1:\n"
-	"\t.4byte .Lframe0\n"
-	"\t.4byte lj_vm_ffi_call\n"
+	"\t.8byte .Lframe1\n"
+	"\t.8byte lj_vm_ffi_call\n"
 	"\t.4byte %d\n"
-	"\t.byte 0x81\n\t.uleb128 2*5\n"	/* offset ra*/
-	"\t.byte 0x96\n\t.uleb128 2*6\n"	/* offset fp */
+	"\t.byte 0x81\n\t.uleb128 1\n"		/* offset ra*/
+	"\t.byte 0x96\n\t.uleb128 2\n"		/* offset fp */
+	"\t.byte 0x84\n\t.uleb128 3\n"		/* offset arg1 */
 	"\t.align 3\n"
 	".LEFDE1:\n\n", (int)ctx->codesz - fcofs);
 #endif
 #if !LJ_NO_UNWIND
     fprintf(ctx->fp, "\t.section .eh_frame,\"a\",@progbits\n");
     fprintf(ctx->fp,
-	".Lframe1:\n"
-	"\t.4byte .LECIE1-.LSCIE1\n"
-	".LSCIE1:\n"
+	".Lframe2:\n"
+	"\t.4byte .LECIE2-.LSCIE2\n"
+	".LSCIE2:\n"
 	"\t.4byte 0\n"
 	"\t.byte 0x1\n"
 	"\t.string \"zPR\"\n"
 	"\t.uleb128 0x1\n"
-	"\t.sleb128 -4\n"
+	"\t.sleb128 -8\n"
 	"\t.byte 1\n"				/* Return address is in ra. */
 	"\t.uleb128 6\n"			/* augmentation length */
 	"\t.byte 0x1b\n"
 	"\t.4byte lj_err_unwind_dwarf-.\n"
 	"\t.byte 0x1b\n"
 	"\t.byte 0xc\n\t.uleb128 3\n\t.uleb128 0\n"	/* def_cfa sp 0 */
-	"\t.align 2\n"
-	".LECIE1:\n\n");
+	"\t.align 3\n"
+	".LECIE2:\n\n");
     fprintf(ctx->fp,
 	".LSFDE2:\n"
 	"\t.4byte .LEFDE2-.LASFDE2\n"
 	".LASFDE2:\n"
-	"\t.4byte .LASFDE2-.Lframe1\n"
+	"\t.4byte .LASFDE2-.Lframe2\n"
 	"\t.4byte .Lbegin-.\n"
 	"\t.4byte %d\n"
 	"\t.uleb128 0\n"			/* augmentation length */
-	"\t.byte 0x81\n\t.uleb128 2*5\n"	/* offset ra*/
-	"\t.byte 0x96\n\t.uleb128 2*6\n",	/* offset fp */
+	"\t.byte 0x81\n\t.uleb128 5\n"	/* offset ra*/
+	"\t.byte 0x96\n\t.uleb128 6\n",	/* offset fp */
 	fcofs);
     for (i = 31; i >= 23; i--)	/* offset r23-r31 */
-      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+i, 2*(31-i+7));
+      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+i, 31-i+7);
     for (i = 31; i >= 24; i--)	/* offset f24-f31 */
-      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+32+i, 2*(31-i+16));
+      fprintf(ctx->fp, "\t.byte %d\n\t.uleb128 %d\n", 0x80+32+i, 31-i+16);
     fprintf(ctx->fp,
-	"\t.align 2\n"
+	"\t.align 3\n"
 	".LEFDE2:\n\n");
 #if LJ_HASFFI
     fprintf(ctx->fp,
-	".Lframe2:\n"
-	"\t.4byte .LECIE2-.LSCIE2\n"
-	".LSCIE2:\n"
+	".Lframe3:\n"
+	"\t.4byte .LECIE3-.LSCIE3\n"
+	".LSCIE3:\n"
 	"\t.4byte 0\n"
 	"\t.byte 0x1\n"
 	"\t.string \"zR\"\n"
 	"\t.uleb128 0x1\n"
-	"\t.sleb128 -4\n"
+	"\t.sleb128 -8\n"
 	"\t.byte 1\n"				/* Return address is in ra. */
 	"\t.uleb128 1\n"			/* augmentation length */
 	"\t.byte 0x1b\n"
-	"\t.byte 0xc\n\t.uleb128 3\n\t.uleb128 0\n"	/* def_cfa sp 0 */
-	"\t.align 2\n"
-	".LECIE2:\n\n");
+	"\t.byte 0xc\n\t.uleb128 22\n\t.uleb128 0\n"	/* def_cfa fp 0 */
+	"\t.align 3\n"
+	".LECIE3:\n\n");
     fprintf(ctx->fp,
 	".LSFDE3:\n"
 	"\t.4byte .LEFDE3-.LASFDE3\n"
 	".LASFDE3:\n"
-	"\t.4byte .LASFDE3- .Lframe2\n"
+	"\t.4byte .LASFDE3- .Lframe3\n"
 	"\t.4byte lj_vm_ffi_call-.\n"
 	"\t.4byte %d\n"
 	"\t.uleb128 0\n"			/* augmentation length */
-	"\t.byte 0x81\n\t.uleb128 2*5\n"	/* offset ra*/
-	"\t.byte 0x96\n\t.uleb128 2*6\n"	/* offset fp */
-	"\t.align 2\n"
+	"\t.byte 0x81\n\t.uleb128 1\n"		/* offset ra*/
+	"\t.byte 0x96\n\t.uleb128 2\n"		/* offset fp */
+	"\t.byte 0x84\n\t.uleb128 3\n"		/* offset arg1 */
+	"\t.align 3\n"
 	".LEFDE3:\n\n", (int)ctx->codesz - fcofs);
 #endif
-#endif
-#if !LJ_NO_UNWIND
-    /* NYI */
 #endif
     break;
   default:
