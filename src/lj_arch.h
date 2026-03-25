@@ -596,7 +596,7 @@
 #undef LJ_TARGET_MIPS
 #endif
 #elif LJ_TARGET_LOONGARCH64
-#if !(defined(_ABILP64) && _LOONGARCH_SIM == _ABILP64)
+#if !defined(__loongarch_lp64)
 #error "Only LOONGARCH lp64d ABI is supported"
 #undef LJ_TARGET_LOONGARCH64
 #endif
