@@ -83,12 +83,13 @@ static void emit_b_bl(ASMState *as, LOONGIns loongi, uint32_t i)
   *--as->mcp = loongi | LOONGF_I26(i);
 }
 
-
 /* -- Emit loads/stores --------------------------------------------------- */
+
+#define jglofs(as, k) \
+  (((uintptr_t)(k) - (uintptr_t)J2G(as->J)) & 0xfff)
 
 /* Prefer rematerialization of BASE/L from global_State over spills. */
 #define emit_canremat(ref)	((ref) <= REF_BASE)
-
 
 /* Load a signed 32 bit constant into a GPR. */
 static void emit_loads32(ASMState *as, Reg r, int32_t i)

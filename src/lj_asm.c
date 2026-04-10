@@ -94,7 +94,7 @@ typedef struct ASMState {
   MCode *flagmcp;	/* Pending opportunity to merge flag setting ins. */
   MCode *realign;	/* Realign loop if not NULL. */
   MCode *mctail;	/* Tail of trace before stack adjust + jmp. */
-#if LJ_TARGET_PPC || LJ_TARGET_ARM64
+#if LJ_TARGET_PPC || LJ_TARGET_ARM64 || LJ_TARGET_LOONGARCH64
   MCode *mcexit;	/* Pointer to exit stubs. */
 #endif
 

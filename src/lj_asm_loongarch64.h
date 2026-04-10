@@ -50,27 +50,34 @@ static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
 {
   MCLabel trampoline_ptr = as->mctop;
   MCode *mxp = as->mctop - nexits;
-  if (mxp - (nexits + 5 + MCLIM_REDZONE) < as->mclim)
+  as->mcexit = mxp;
+  if (mxp - (nexits + 6 + MCLIM_REDZONE) < as->mclim)
     asm_mclimit(as);
   /* st.d ra, sp, 0; li TMP, traceno; st.w TMP, sp, 8; jirl ->vm_exit_handler;*/
   MCode *target = (MCode *)(void *)lj_vm_exit_handler;
   ptrdiff_t delta = target - mxp + 1;
-  *--mxp = LOONGI_BL | LOONGF_I26(delta);
+  if (LOONGF_S_OK(delta, 26)) {
+    *--mxp = LOONGI_BL | LOONGF_I26(delta);
+  } else {
+    int ofs = jglofs(as, &as->J->k64[LJ_K64_VM_EXIT_HANDLER]);
+    *--mxp = LOONGI_JIRL | LOONGF_D(RID_RA) | LOONGF_J(RID_TMP) | LOONGF_I16(0);
+    *--mxp = LOONGI_LD_D | LOONGF_D(RID_TMP) | LOONGF_J(RID_JGL) | LOONGF_I12(ofs);
+  }
   *--mxp = LOONGI_ST_W | LOONGF_D(RID_TMP) | LOONGF_J(RID_SP) | LOONGF_I12(8);
   *--mxp = LOONGI_ORI | LOONGF_D(RID_TMP) | LOONGF_J(RID_TMP) | LOONGF_I12(as->T->traceno);
   *--mxp = LOONGI_LU12I_W | LOONGF_D(RID_TMP) | LOONGF_I20(as->T->traceno>>12);
   *--mxp = LOONGI_ST_D | LOONGF_D(RID_RA) | LOONGF_J(RID_SP) | LOONGF_I12(0);
-  while (trampoline_ptr > as->mctop - nexits) {
-    delta = mxp - trampoline_ptr + 1;
+  as->mctop = mxp;
+  while (trampoline_ptr > as->mcexit) {
+    delta = as->mctop - trampoline_ptr + 1;
     *--trampoline_ptr = LOONGI_BL | LOONGF_I26(delta);
   }
-  as->mctop = mxp;
 }
 
 static MCode *asm_exitstub_addr(ASMState *as, ExitNo exitno)
 {
   /* Keep this in-sync with exitstub_trace_addr(). */
-  return as->mctop + exitno + 5;
+  return as->mcexit + exitno;
 }
 
 /* Emit conditional branch to exit for guard. */
@@ -1812,31 +1819,46 @@ static Reg asm_head_side_base(ASMState *as, IRIns *irp)
 /* Fixup the tail code. */
 static void asm_tail_fixup(ASMState *as, TraceNo lnk)
 {
-  MCode *target = lnk ? traceref(as->J,lnk)->mcode : (MCode *)lj_vm_exit_interp;
+  MCode *mcp = as->mctail;
   int32_t spadj = as->T->spadjust;
-  MCode *p = as->mctop - 1;
-  if (spadj == 0) {
-    p[-1] = LOONGI_NOP;
+
+  /* Emit stack adjustment if needed. */
+  if (spadj) {
+    lj_assertA(checki12(spadj), "spadj too large");
+    *mcp++ = LOONGI_ADDI_D | LOONGF_D(RID_SP) | LOONGF_J(RID_SP) | LOONGF_I12(spadj);
   } else {
-    p[-1] = LOONGI_ADDI_D|LOONGF_D(RID_SP)|LOONGF_J(RID_SP)|LOONGF_I12(spadj);
+    *mcp++  = LOONGI_NOP;
   }
 
-  MCode *tmp = p;
-  *p = LOONGI_B | LOONGF_I26((uintptr_t)(target-tmp));
+  /* Emit exit branch. */
+  MCode *target = lnk ? traceref(as->J, lnk)->mcode : (MCode *)(void *)lj_vm_exit_interp;
+  if (lnk || LOONGF_S_OK(target - mcp, 26)) {
+    *mcp = LOONGI_B | LOONGF_I26(target - mcp);
+    mcp++;
+  } else {
+    int ofs = jglofs(as, &as->J->k64[LJ_K64_VM_EXIT_INTERP]);
+    lj_assertA(checki12(ofs), "ofs too large");
+    *mcp++ = LOONGI_LD_D | LOONGF_D(RID_TMP) | LOONGF_J(RID_JGL) | LOONGF_I12(ofs);
+    *mcp++ = LOONGI_JIRL | LOONGF_D(RID_ZERO) | LOONGF_J(RID_TMP) | 0;
+  }
 }
 
 /* Prepare tail of code. */
-static void asm_tail_prep(ASMState *as)
+static void asm_tail_prep(ASMState *as, TraceNo lnk)
 {
-  MCode *p = as->mctop - 1;  /* Leave room for exit branch. */
+  as->mcp = as->mctop - 1;  /* Leave room for exit branch. */
   if (as->loopref) {
-    as->invmcp = as->mcp = p;
+    as->invmcp = as->mcp;
   } else {
-    as->mcp = p-1;  /* Leave room for stack pointer adjustment. */
+    if (!lnk) {
+      MCode *target = (MCode *)(void *)lj_vm_exit_interp;
+      if (!LOONGF_S_OK(target - as->mcp, 26) || !LOONGF_S_OK(target - (as->mcp+1), 26))
+        as->mcp--;
+    }
+    as->mcp--;  /* Leave room for stack pointer adjustment. */
     as->invmcp = NULL;
-    p[-1] = LOONGI_NOP;
   }
-  *p = LOONGI_NOP;  /* Prevent load/store merging. */
+  as->mctail = as->mcp;
 }
 
 /* -- Trace setup --------------------------------------------------------- */
