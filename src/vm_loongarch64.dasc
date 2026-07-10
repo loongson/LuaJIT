@@ -2310,6 +2310,55 @@ static void build_subroutines(BuildCtx *ctx)
   |  vm_round_hf trunc
   |.endif
   |
+  |//-----------------------------------------------------------------------
+  |//-- Number conversion functions ----------------------------------------
+  |//-----------------------------------------------------------------------
+  |
+  |// int64_t lj_vm_num2int_check(double x)
+  |->vm_num2int_check:
+  |  ftintrz.w.d FARG2, FARG1
+  |  movfr2gr.s CRET1, FARG2
+  |  ffint.d.w FARG2, FARG2
+  |  fcmp.ceq.d FCC0, FARG2, FARG1
+  |  bceqz FCC0, >1
+  |  ret
+  |1:
+  |  lu12i.w CRET1, 0x80000
+  |  bstrpick.d CRET1, CRET1, 31, 0
+  |  lu52i.d CRET1, CRET1, 0x800       // 0x8000000080000000
+  |  ret
+  |
+  |// int64_t lj_vm_num2i64(double x)
+  |->vm_num2i64:
+  |  ftintrz.l.d FARG2, FARG1
+  |  movfr2gr.d CRET1, FARG2
+  |  ret
+  |
+  |// uint64_t lj_vm_num2u64(double x)
+  |->vm_num2u64:
+  |  ftintrz.l.d FARG2, FARG1
+  |  movfr2gr.d CRET1, FARG2
+  |  l12i TMP0, -1
+  |  srli.d TMP0, TMP0, 1              // INT64_MAX (0x7fff...)
+  |  beq CRET1, TMP0, >1
+  |  ret
+  |1:
+  |  lu12i.w TMP0, 0xc3f00
+  |  slli.d TMP0, TMP0, 32             // 0xc3f0000000000000
+  |  movgr2fr.d FARG2, TMP0
+  |  fadd.d FARG1, FARG1, FARG2        // x = x - 2^64
+  |  ftintrz.l.d FARG2, FARG1
+  |  movfr2gr.d CRET1, FARG2
+  |  ret
+  |
+  |// int32_t lj_vm_tobit(double x)
+  |->vm_tobit:
+  |  lu12i.w TMP0, 0x43380             // 0x43380000
+  |  slli.d TMP0, TMP0, 32
+  |  movgr2fr.d FARG2, TMP0
+  |  fadd.d FARG1, FARG1, FARG2
+  |  movfr2gr.s CRET1, FARG1
+  |  ret
   |
   |//-----------------------------------------------------------------------
   |//-- Miscellaneous functions --------------------------------------------
