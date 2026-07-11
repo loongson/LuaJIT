@@ -2190,9 +2190,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  l12i TISNIL, LJ_TNIL
   |  l12i TISNUM, LJ_TISNUM		// Setup type comparison constants.
   |  movgr2fr.w TOBIT, TMP3
-  |  ld.d TMP1, LFUNC:RB->pc
+  |  ld.d TMP4, LFUNC:RB->pc
   |  st.d r0, GL->jit_base
-  |  ld.d KBASE, PC2PROTO(k)(TMP1)
   |  fcvt.d.s TOBIT, TOBIT
   |  // Modified copy of ins_next which handles function header dispatch, too.
   |  ld.w INS, 0(PC)
@@ -2209,6 +2208,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  ld.d TMP3, 0(TMP0)
   |  decode_RA RA, INS
   |  beqz TMP2, >2
+  |  ld.d KBASE, PC2PROTO(k)(TMP4)
   |  jirl r0, TMP3, 0
   |2:
   |  sltui TMP2, TMP1, (BC_FUNCC+2)*8	// Fast function?
@@ -2223,8 +2223,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  sub.d TMP1, BASE, TMP0
   |  ld.d LFUNC:TMP2, -32(TMP1)
   |  cleartp LFUNC:TMP2
-  |  ld.d TMP1, LFUNC:TMP2->pc
-  |  ld.d KBASE, PC2PROTO(k)(TMP1)
+  |  ld.d TMP4, LFUNC:TMP2->pc
+  |  ld.d KBASE, PC2PROTO(k)(TMP4)
   |3:
   |  addi.d RC, MULTRES, -8
   |  add.d RA, RA, BASE
@@ -2238,6 +2238,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  decode_OP TMP1, INS
   |  decode_BC8b TMP1
   |  add.d TMP0, DISPATCH, TMP1
+  |  ld.d KBASE, PC2PROTO(k)(TMP4)
   |  decode_RD RD, INS
   |  ld.d TMP4, GG_DISP2STATIC(TMP0)
   |  decode_RA RA, INS
