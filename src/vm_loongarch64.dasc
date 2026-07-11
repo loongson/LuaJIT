@@ -2929,13 +2929,17 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  bne CARG3, TISNUM, >1
     |  beq TMP0, TMP1, ->vmeta_unm      // Meta handler deals with -2^31.
     |  sub.w TMP0, r0, TMP0
+    |  beqz TMP0, >3
     |  bstrpick.d TMP0, TMP0, 31, 0
     |  settp TMP0, TISNUM
     |  b >2
     |1:
     |  slli.d TMP1, TMP1, 32
     |  bgeu CARG3, TISNUM, ->vmeta_unm
-    |  xor TMP0, TMP0, TMP1		// sign => ~sign
+    |  xor TMP0, TMP0, TMP1             // sign => ~sign
+    |  b >2
+    |3:
+    |  slli.d TMP0, TMP1, 32
     |2:
     |  st.d TMP0, 0(RA)
     |  ins_next
