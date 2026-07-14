@@ -1,7 +1,7 @@
 /*
 ** LoongArch instruction emitter.
-** Copyright (C) 2005-2025 Mike Pall. See Copyright Notice in luajit.h
-** Copyright (C) 2025 Loongson Technology. All rights reserved.
+** Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2026 Loongson Technology. All rights reserved.
 */
 
 static intptr_t get_k64val(ASMState *as, IRRef ref)
